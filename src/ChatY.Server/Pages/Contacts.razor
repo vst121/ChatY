@@ -1,0 +1,122 @@
+@page "/contacts"
+@using ChatY.Core.Entities
+@using ChatY.Services.Interfaces
+@inject IUserService UserService
+@inject IChatService ChatService
+@inject NavigationManager Navigation
+
+<PageTitle>Contacts - ChatY</PageTitle>
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>Contacts</h2>
+            
+            <div class="mb-3">
+                <input type="text" class="form-control" placeholder="Search contacts..."
+                       @bind="searchTerm" @oninput="SearchContacts" />
+            </div>
+
+            @if (contacts == null)
+            {
+                <p>Loading contacts...</p>
+            }
+            else if (!contacts.Any())
+            {
+                <p class="text-muted">No contacts found. Try searching for users.</p>
+            }
+            else
+            {
+                <div class="list-group">
+                    @foreach (var contact in contacts)
+                    {
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">@(contact.DisplayName ?? contact.UserName)</h6>
+                                <small class="text-muted">@contact.Email</small>
+                                <div>
+                                    <span class="badge @GetStatusBadgeClass(contact.UserStatus)">
+                                        @contact.UserStatus
+                                    </span>
+                                    @if (contact.LastSeen.HasValue && contact.UserStatus == UserStatus.Offline)
+                                    {
+                                        <small class="text-muted ms-2">
+                                            Last seen: @contact.LastSeen.Value.ToString("g")
+                                        </small>
+                                    }
+                                </div>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-primary" @onclick="() => StartChat(contact.Id)">
+                                    <i class="fas fa-comment"></i> Message
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<User>? contacts;
+    private string searchTerm = string.Empty;
+    private string? currentUserId = "user1"; // TODO: Get from authentication
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadContacts();
+    }
+
+    private async Task LoadContacts()
+    {
+        // Load all users or contacts
+        // For now, we'll search with empty term to get all users
+        if (currentUserId != null)
+        {
+            contacts = (await UserService.SearchUsersAsync("", currentUserId)).ToList();
+        }
+    }
+
+    private async Task SearchContacts()
+    {
+        if (currentUserId != null && !string.IsNullOrWhiteSpace(searchTerm))
+        {
+            contacts = (await UserService.SearchUsersAsync(searchTerm, currentUserId)).ToList();
+        }
+        else
+        {
+            await LoadContacts();
+        }
+    }
+
+    private async Task StartChat(string userId)
+    {
+        if (currentUserId != null)
+        {
+            // Create or get existing chat
+            var user = await UserService.GetUserByIdAsync(userId);
+            if (user != null)
+            {
+                var chatName = user.DisplayName ?? user.UserName;
+                var chat = await ChatService.CreateChatAsync(currentUserId, chatName, ChatType.Private, new[] { userId });
+                Navigation.NavigateTo($"/chats?chatId={chat.Id}");
+            }
+        }
+    }
+
+    private string GetStatusBadgeClass(UserStatus status)
+    {
+        return status switch
+        {
+            UserStatus.Online => "bg-success",
+            UserStatus.Offline => "bg-secondary",
+            UserStatus.Away => "bg-warning",
+            UserStatus.Busy => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+}
+
+

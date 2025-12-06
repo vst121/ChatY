@@ -1,0 +1,68 @@
+@page "/"
+@using ChatY.Core.Entities
+@using ChatY.Services.Interfaces
+@inject IChatService ChatService
+@inject IUserService UserService
+@inject NavigationManager Navigation
+
+<PageTitle>Home - ChatY</PageTitle>
+
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2 text-center">
+            <h1 class="display-4">Welcome to ChatY</h1>
+            <p class="lead">A modern, feature-rich chat application built with .NET 10 and Blazor</p>
+            
+            <div class="mt-5">
+                <a href="/chats" class="btn btn-primary btn-lg me-3">
+                    <i class="fas fa-comments"></i> Start Chatting
+                </a>
+                <a href="/contacts" class="btn btn-outline-primary btn-lg">
+                    <i class="fas fa-users"></i> View Contacts
+                </a>
+            </div>
+
+            <div class="mt-5">
+                <h3>Features</h3>
+                <div class="row mt-4">
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <i class="fas fa-bolt fa-3x text-primary mb-3"></i>
+                                <h5>Real-time Messaging</h5>
+                                <p>Instant messaging with SignalR WebSockets</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <i class="fas fa-shield-alt fa-3x text-success mb-3"></i>
+                                <h5>Secure & Private</h5>
+                                <p>End-to-end encryption with Azure Key Vault</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <i class="fas fa-users fa-3x text-info mb-3"></i>
+                                <h5>Group Chats</h5>
+                                <p>Create groups with up to 1000+ members</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // Initialize user if needed
+    }
+}
+
+

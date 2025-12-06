@@ -1,0 +1,197 @@
+@using ChatY.Core.Entities
+@using ChatY.Services.Interfaces
+@using Microsoft.AspNetCore.SignalR.Client
+@inject IMessageService MessageService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+<div class="chat-window">
+    <div class="chat-header">
+        <h5>@ChatName</h5>
+        <div class="chat-actions">
+            <button class="btn btn-sm btn-link"><i class="fas fa-phone"></i></button>
+            <button class="btn btn-sm btn-link"><i class="fas fa-video"></i></button>
+            <button class="btn btn-sm btn-link"><i class="fas fa-ellipsis-v"></i></button>
+        </div>
+    </div>
+
+    <div class="chat-messages" @ref="messagesContainer">
+        @if (messages == null)
+        {
+            <div class="text-center p-4">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        }
+        else
+        {
+            @foreach (var message in messages.OrderBy(m => m.SentAt))
+            {
+                <div class="message @(message.SenderId == currentUserId ? "message-sent" : "message-received")">
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-sender">@GetSenderName(message)</span>
+                            <span class="message-time">@message.SentAt.ToString("HH:mm")</span>
+                        </div>
+                        <div class="message-text">@message.Content</div>
+                        @if (message.Reactions.Any())
+                        {
+                            <div class="message-reactions">
+                                @foreach (var reaction in message.Reactions.GroupBy(r => r.Emoji))
+                                {
+                                    <span class="reaction-badge">
+                                        @reaction.Key @reaction.Count()
+                                    </span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    <div class="chat-input-container">
+        <div class="typing-indicator" style="@(isTyping ? "display: block;" : "display: none;")">
+            <span>@typingUserName is typing...</span>
+        </div>
+        <div class="chat-input">
+            <button class="btn btn-link"><i class="fas fa-paperclip"></i></button>
+            <input type="text"
+                   @bind="messageInput"
+                   @onkeypress="HandleKeyPress"
+                   placeholder="Type a message..."
+                   class="form-control" />
+            <button class="btn btn-link" @onclick="SendMessage" disabled="@string.IsNullOrWhiteSpace(messageInput)">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string ChatId { get; set; } = string.Empty;
+    [Parameter] public string ChatName { get; set; } = string.Empty;
+
+    private List<Message>? messages;
+    private HubConnection? hubConnection;
+    private string messageInput = string.Empty;
+    private string? currentUserId = "user1"; // TODO: Get from authentication
+    private bool isTyping = false;
+    private string? typingUserName;
+    private ElementReference messagesContainer;
+    private System.Threading.Timer? typingTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMessages();
+        await InitializeSignalR();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await ScrollToBottom();
+        }
+    }
+
+    private async Task LoadMessages()
+    {
+        messages = (await MessageService.GetChatMessagesAsync(ChatId)).ToList();
+        StateHasChanged();
+        await ScrollToBottom();
+    }
+
+    private async Task InitializeSignalR()
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+            .Build();
+
+        hubConnection.On<object>("MessageReceived", async (messageObj) =>
+        {
+            await LoadMessages();
+            StateHasChanged();
+        });
+
+        hubConnection.On<object>("UserTyping", (typingObj) =>
+        {
+            // Handle typing indicator
+            isTyping = true;
+            StateHasChanged();
+        });
+
+        hubConnection.On<object>("UserStoppedTyping", (typingObj) =>
+        {
+            isTyping = false;
+            StateHasChanged();
+        });
+
+        await hubConnection.StartAsync();
+        await hubConnection.SendAsync("JoinChat", ChatId);
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(messageInput) || hubConnection == null)
+            return;
+
+        await hubConnection.SendAsync("SendMessage", ChatId, messageInput, "Text");
+        messageInput = string.Empty;
+        await LoadMessages();
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessage();
+        }
+    }
+
+    private async Task HandleTyping()
+    {
+        if (hubConnection != null)
+        {
+            await hubConnection.SendAsync("StartTyping", ChatId);
+            
+            typingTimer?.Dispose();
+            typingTimer = new System.Threading.Timer(async _ =>
+            {
+                if (hubConnection != null)
+                {
+                    await hubConnection.SendAsync("StopTyping", ChatId);
+                }
+            }, null, 3000, Timeout.Infinite);
+        }
+    }
+
+    private string GetSenderName(Message message)
+    {
+        return message.Sender?.DisplayName ?? message.Sender?.UserName ?? "Unknown";
+    }
+
+    private async Task ScrollToBottom()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("scrollToBottom", messagesContainer);
+        }
+        catch { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        typingTimer?.Dispose();
+        if (hubConnection is not null)
+        {
+            await hubConnection.SendAsync("LeaveChat", ChatId);
+            await hubConnection.DisposeAsync();
+        }
+    }
+}
+
+

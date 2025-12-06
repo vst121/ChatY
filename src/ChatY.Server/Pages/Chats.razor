@@ -1,0 +1,151 @@
+@page "/chats"
+@using ChatY.Core.Entities
+@using ChatY.Services.Interfaces
+@using Microsoft.AspNetCore.SignalR.Client
+@inject IChatService ChatService
+@inject IUserService UserService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+<PageTitle>Chats - ChatY</PageTitle>
+
+<div class="chat-container">
+    <div class="chat-sidebar">
+        <div class="chat-list-header">
+            <h5>Chats</h5>
+            <button class="btn btn-sm btn-primary" @onclick="CreateNewChat">
+                <i class="fas fa-plus"></i> New Chat
+            </button>
+        </div>
+        <div class="chat-list">
+            @if (chats == null)
+            {
+                <p>Loading chats...</p>
+            }
+            else if (!chats.Any())
+            {
+                <p class="text-muted">No chats yet. Start a new conversation!</p>
+            }
+            else
+            {
+                @foreach (var chat in chats)
+                {
+                    <div class="chat-item @(selectedChatId == chat.Id ? "active" : "")" 
+                         @onclick="() => SelectChat(chat.Id)">
+                        <div class="chat-item-avatar">
+                            <i class="fas fa-user-circle fa-2x"></i>
+                        </div>
+                        <div class="chat-item-content">
+                            <div class="chat-item-header">
+                                <span class="chat-item-name">@chat.Name</span>
+                                <span class="chat-item-time">@GetLastMessageTime(chat.LastMessageAt)</span>
+                            </div>
+                            <div class="chat-item-preview">
+                                @if (chat.UnreadCount > 0)
+                                {
+                                    <span class="badge bg-primary">@chat.UnreadCount</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    <div class="chat-main">
+        @if (selectedChat == null)
+        {
+            <div class="chat-empty">
+                <i class="fas fa-comments fa-4x text-muted"></i>
+                <h4>Select a chat to start messaging</h4>
+            </div>
+        }
+        else
+        {
+            <ChatWindow ChatId="selectedChat.Id" ChatName="selectedChat.Name" />
+        }
+    </div>
+</div>
+
+@code {
+    private List<Chat>? chats;
+    private Chat? selectedChat;
+    private string? selectedChatId;
+    private HubConnection? hubConnection;
+    private string? currentUserId = "user1"; // TODO: Get from authentication
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadChats();
+        await InitializeSignalR();
+    }
+
+    private async Task LoadChats()
+    {
+        if (currentUserId != null)
+        {
+            chats = (await ChatService.GetUserChatsAsync(currentUserId)).ToList();
+        }
+    }
+
+    private async Task InitializeSignalR()
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+            .Build();
+
+        hubConnection.On<string, string>("MessageReceived", async (chatId, message) =>
+        {
+            if (chatId == selectedChatId)
+            {
+                await LoadChats();
+                StateHasChanged();
+            }
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    private async Task SelectChat(string chatId)
+    {
+        selectedChatId = chatId;
+        if (currentUserId != null)
+        {
+            selectedChat = await ChatService.GetChatByIdAsync(chatId, currentUserId);
+            if (selectedChat != null && hubConnection != null)
+            {
+                await hubConnection.SendAsync("JoinChat", chatId);
+                await ChatService.MarkAsReadAsync(chatId, currentUserId);
+                await LoadChats();
+            }
+        }
+    }
+
+    private async Task CreateNewChat()
+    {
+        // TODO: Implement create chat dialog
+        Navigation.NavigateTo("/chats/new");
+    }
+
+    private string GetLastMessageTime(DateTime? lastMessageAt)
+    {
+        if (!lastMessageAt.HasValue) return "";
+        var timeSpan = DateTime.UtcNow - lastMessageAt.Value;
+        if (timeSpan.TotalMinutes < 1) return "Just now";
+        if (timeSpan.TotalHours < 1) return $"{(int)timeSpan.TotalMinutes}m ago";
+        if (timeSpan.TotalDays < 1) return $"{(int)timeSpan.TotalHours}h ago";
+        return lastMessageAt.Value.ToString("MMM d");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+}
+
+
