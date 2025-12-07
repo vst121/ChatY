@@ -59,11 +59,8 @@
         </div>
         <div class="chat-input">
             <button class="btn btn-link"><i class="fas fa-paperclip"></i></button>
-            <input type="text"
-                   @bind="messageInput"
-                   @onkeypress="HandleKeyPress"
-                   placeholder="Type a message..."
-                   class="form-control" />
+            <input type="text" @bind="messageInput" @oninput="HandleTyping" @onkeypress="HandleKeyPress"
+                placeholder="Type a message..." class="form-control" />
             <button class="btn btn-link" @onclick="SendMessage" disabled="@string.IsNullOrWhiteSpace(messageInput)">
                 <i class="fas fa-paper-plane"></i>
             </button>
@@ -108,25 +105,27 @@
     private async Task InitializeSignalR()
     {
         hubConnection = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
-            .Build();
+        .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+        .Build();
 
-        hubConnection.On<object>("MessageReceived", async (messageObj) =>
+        hubConnection.On<dynamic>("MessageReceived", async (messageObj) =>
         {
             await LoadMessages();
             StateHasChanged();
         });
 
-        hubConnection.On<object>("UserTyping", (typingObj) =>
+        hubConnection.On<dynamic>("UserTyping", (typingObj) =>
         {
             // Handle typing indicator
             isTyping = true;
+            typingUserName = typingObj.UserName;
             StateHasChanged();
         });
 
-        hubConnection.On<object>("UserStoppedTyping", (typingObj) =>
+        hubConnection.On<dynamic>("UserStoppedTyping", (typingObj) =>
         {
             isTyping = false;
+            typingUserName = null;
             StateHasChanged();
         });
 
@@ -154,19 +153,24 @@
 
     private async Task HandleTyping()
     {
-        if (hubConnection != null)
+        if (hubConnection != null && !isTyping)
         {
             await hubConnection.SendAsync("StartTyping", ChatId);
-            
-            typingTimer?.Dispose();
-            typingTimer = new System.Threading.Timer(async _ =>
-            {
-                if (hubConnection != null)
-                {
-                    await hubConnection.SendAsync("StopTyping", ChatId);
-                }
-            }, null, 3000, Timeout.Infinite);
+            isTyping = true;
         }
+
+        // Reset the timer
+        typingTimer?.Dispose();
+        typingTimer = new System.Threading.Timer(async _ =>
+        {
+            if (hubConnection != null)
+            {
+                await hubConnection.SendAsync("StopTyping", ChatId);
+                isTyping = false;
+                typingUserName = null;
+                await InvokeAsync(StateHasChanged);
+            }
+        }, null, 3000, Timeout.Infinite);
     }
 
     private string GetSenderName(Message message)
@@ -193,5 +197,3 @@
         }
     }
 }
-
-

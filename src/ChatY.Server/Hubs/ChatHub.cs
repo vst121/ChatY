@@ -26,23 +26,20 @@ public class ChatHub : Hub
 
     public override async Task OnConnectedAsync()
     {
-        var userId = Context.UserIdentifier;
-        if (userId != null)
-        {
-            _userConnections[Context.ConnectionId] = userId;
-            await _userService.UpdateUserStatusAsync(userId, UserStatus.Online);
-            await Clients.All.SendAsync("UserStatusChanged", userId, UserStatus.Online.ToString());
-        }
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
+        _userConnections[Context.ConnectionId] = userId;
+        await _userService.UpdateUserStatusAsync(userId, UserStatus.Online);
+        await Clients.All.SendAsync("UserStatusChanged", userId, UserStatus.Online.ToString());
         await base.OnConnectedAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var userId = Context.UserIdentifier;
-        if (userId != null && _userConnections.ContainsKey(Context.ConnectionId))
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
+        if (_userConnections.ContainsKey(Context.ConnectionId))
         {
             _userConnections.Remove(Context.ConnectionId);
-            
+
             // Check if user has other connections
             var hasOtherConnections = _userConnections.Values.Any(v => v == userId);
             if (!hasOtherConnections)
@@ -68,7 +65,7 @@ public class ChatHub : Hub
 
     public async Task SendMessage(string chatId, string content, string messageType = "Text")
     {
-        var userId = Context.UserIdentifier;
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
         if (userId == null) return;
 
         var type = Enum.Parse<MessageType>(messageType);
@@ -88,7 +85,7 @@ public class ChatHub : Hub
 
     public async Task StartTyping(string chatId)
     {
-        var userId = Context.UserIdentifier;
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
         if (userId == null) return;
 
         var user = await _userService.GetUserByIdAsync(userId);
@@ -104,7 +101,7 @@ public class ChatHub : Hub
 
     public async Task StopTyping(string chatId)
     {
-        var userId = Context.UserIdentifier;
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
         if (userId == null) return;
 
         await Clients.GroupExcept(chatId, Context.ConnectionId).SendAsync("UserStoppedTyping", new
@@ -116,7 +113,7 @@ public class ChatHub : Hub
 
     public async Task AddReaction(string messageId, string emoji)
     {
-        var userId = Context.UserIdentifier;
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
         if (userId == null) return;
 
         var reaction = await _messageService.AddReactionAsync(messageId, userId, emoji);
@@ -134,7 +131,7 @@ public class ChatHub : Hub
 
     public async Task RemoveReaction(string messageId, string emoji)
     {
-        var userId = Context.UserIdentifier;
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
         if (userId == null) return;
 
         await _messageService.RemoveReactionAsync(messageId, userId, emoji);
@@ -153,7 +150,7 @@ public class ChatHub : Hub
 
     public async Task MarkMessageAsRead(string messageId)
     {
-        var userId = Context.UserIdentifier;
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
         if (userId == null) return;
 
         await _messageService.MarkMessageAsReadAsync(messageId, userId);

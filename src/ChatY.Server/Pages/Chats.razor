@@ -31,8 +31,7 @@
             {
                 @foreach (var chat in chats)
                 {
-                    <div class="chat-item @(selectedChatId == chat.Id ? "active" : "")" 
-                         @onclick="() => SelectChat(chat.Id)">
+                    <div class="chat-item @(selectedChatId == chat.Id ? "active" : "")" @onclick="() => SelectChat(chat.Id)">
                         <div class="chat-item-avatar">
                             <i class="fas fa-user-circle fa-2x"></i>
                         </div>
@@ -42,9 +41,13 @@
                                 <span class="chat-item-time">@GetLastMessageTime(chat.LastMessageAt)</span>
                             </div>
                             <div class="chat-item-preview">
-                                @if (chat.UnreadCount > 0)
+                                @{
+                                    var unreadCount = chat.Participants.FirstOrDefault(p => p.UserId == currentUserId)?.UnreadCount
+                                    ?? 0;
+                                }
+                                @if (unreadCount > 0)
                                 {
-                                    <span class="badge bg-primary">@chat.UnreadCount</span>
+                                    <span class="badge bg-primary">@unreadCount</span>
                                 }
                             </div>
                         </div>
@@ -93,11 +96,12 @@
     private async Task InitializeSignalR()
     {
         hubConnection = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
-            .Build();
+        .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+        .Build();
 
-        hubConnection.On<string, string>("MessageReceived", async (chatId, message) =>
+        hubConnection.On<dynamic>("MessageReceived", async (messageObj) =>
         {
+            var chatId = (string)messageObj.ChatId;
             if (chatId == selectedChatId)
             {
                 await LoadChats();
@@ -147,5 +151,3 @@
         }
     }
 }
-
-
