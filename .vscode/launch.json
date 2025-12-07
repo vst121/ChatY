@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "ChatY Server",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/ChatY.Server/bin/Debug/net10.0/ChatY.Server.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/src/ChatY.Server",
+            "stopAtEntry": false,
+            "console": "integratedTerminal",
+            "env": {
+                "ASPNETCORE_URLS": "http://localhost:5005",
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            },
+            "preLaunchTask": "build"
+        }
+    ]
+}

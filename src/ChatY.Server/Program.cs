@@ -1,3 +1,4 @@
+using ChatY.Core.Entities;
 using ChatY.Infrastructure;
 using ChatY.Infrastructure.Data;
 using ChatY.Server.Hubs;
@@ -56,11 +57,71 @@ app.MapBlazorHub();
 app.MapHub<ChatHub>("/chathub");
 app.MapFallbackToPage("/_Host");
 
-// Ensure database is created (for development)
+// Ensure database is created and seed data (for development)
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ChatYDbContext>();
     dbContext.Database.EnsureCreated();
+
+    // Seed test data
+    if (!dbContext.Users.Any())
+    {
+        var user1 = new User
+        {
+            Id = "user1",
+            UserName = "testuser",
+            DisplayName = "Test User",
+            Email = "test@example.com",
+            UserStatus = UserStatus.Online,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var user2 = new User
+        {
+            Id = "user2",
+            UserName = "testuser2",
+            DisplayName = "Test User 2",
+            Email = "test2@example.com",
+            UserStatus = UserStatus.Online,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        dbContext.Users.AddRange(user1, user2);
+        dbContext.SaveChanges();
+
+        var chat = new Chat
+        {
+            Id = "chat1",
+            Name = "Test Chat",
+            Type = ChatType.Private,
+            CreatedByUserId = "user1",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        dbContext.Chats.Add(chat);
+        dbContext.SaveChanges();
+
+        dbContext.ChatParticipants.AddRange(
+            new ChatParticipant
+            {
+                Id = "part1",
+                ChatId = "chat1",
+                UserId = "user1",
+                Role = ParticipantRole.Owner,
+                JoinedAt = DateTime.UtcNow
+            },
+            new ChatParticipant
+            {
+                Id = "part2",
+                ChatId = "chat1",
+                UserId = "user2",
+                Role = ParticipantRole.Member,
+                JoinedAt = DateTime.UtcNow
+            }
+        );
+        dbContext.SaveChanges();
+    }
 }
 
 app.Run();

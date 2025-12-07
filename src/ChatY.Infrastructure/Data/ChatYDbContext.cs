@@ -215,6 +215,7 @@ public class ChatYDbContext : DbContext
                 .HasForeignKey(e => e.OptionId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
     }
 }
 
