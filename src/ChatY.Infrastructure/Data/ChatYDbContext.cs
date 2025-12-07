@@ -151,7 +151,7 @@ public class ChatYDbContext : DbContext
             entity.HasOne(e => e.Message)
                 .WithMany()
                 .HasForeignKey(e => e.MessageId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // UserBlock configuration
