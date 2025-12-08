@@ -19,6 +19,17 @@ public class MessageService : IMessageService
 
     public async Task<Message> SendMessageAsync(string chatId, string senderId, string content, MessageType type)
     {
+        // Validate chat exists
+        var chat = await _context.Chats.FindAsync(chatId);
+        if (chat == null)
+            throw new ArgumentException("Chat not found");
+
+        // Validate sender is a participant
+        var isParticipant = await _context.ChatParticipants
+            .AnyAsync(cp => cp.ChatId == chatId && cp.UserId == senderId);
+        if (!isParticipant)
+            throw new UnauthorizedAccessException("User is not a participant in this chat");
+
         var message = new Message
         {
             ChatId = chatId,
@@ -31,12 +42,8 @@ public class MessageService : IMessageService
         _context.Messages.Add(message);
 
         // Update chat last message time
-        var chat = await _context.Chats.FindAsync(chatId);
-        if (chat != null)
-        {
-            chat.LastMessageAt = DateTime.UtcNow;
-            chat.UpdatedAt = DateTime.UtcNow;
-        }
+        chat.LastMessageAt = DateTime.UtcNow;
+        chat.UpdatedAt = DateTime.UtcNow;
 
         // Increment unread count for all participants except sender
         var participants = await _context.ChatParticipants
@@ -148,6 +155,17 @@ public class MessageService : IMessageService
         if (parentMessage == null)
             throw new ArgumentException("Parent message not found");
 
+        // Validate chat exists
+        var chat = await _context.Chats.FindAsync(chatId);
+        if (chat == null)
+            throw new ArgumentException("Chat not found");
+
+        // Validate sender is a participant
+        var isParticipant = await _context.ChatParticipants
+            .AnyAsync(cp => cp.ChatId == chatId && cp.UserId == senderId);
+        if (!isParticipant)
+            throw new UnauthorizedAccessException("User is not a participant in this chat");
+
         var reply = new Message
         {
             ChatId = chatId,
@@ -162,6 +180,11 @@ public class MessageService : IMessageService
 
         // Update parent message reply count
         parentMessage.ReplyCount++;
+
+        // Update chat last message time
+        chat.LastMessageAt = DateTime.UtcNow;
+        chat.UpdatedAt = DateTime.UtcNow;
+
         await _context.SaveChangesAsync();
 
         return reply;
