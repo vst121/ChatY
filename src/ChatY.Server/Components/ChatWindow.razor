@@ -59,6 +59,14 @@
         }
     </div>
 
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="DismissError" aria-label="Close"></button>
+        </div>
+    }
+
     <div class="chat-input-container">
         <div class="typing-indicator" style="@(isTyping ? "display: block;" : "display: none;")">
             <span>@typingUserName is typing...</span>
@@ -120,6 +128,7 @@
     private string currentCallId = string.Empty;
     private string currentCallType = "Voice";
     private bool showCallNotification = false;
+    private string? errorMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -155,6 +164,12 @@
             StateHasChanged();
         });
 
+        hubConnection.On<string>("Error", (errorMsg) =>
+        {
+            errorMessage = errorMsg;
+            StateHasChanged();
+        });
+
         hubConnection.On<dynamic>("UserTyping", (typingObj) =>
         {
             // Handle typing indicator
@@ -185,9 +200,16 @@
         if (string.IsNullOrWhiteSpace(messageInput) || hubConnection == null)
             return;
 
+        errorMessage = null; // Clear any previous error
         await hubConnection.SendAsync("SendMessage", ChatId, messageInput, "Text");
         messageInput = string.Empty;
         await LoadMessages();
+    }
+
+    private void DismissError()
+    {
+        errorMessage = null;
+        StateHasChanged();
     }
 
     private async Task HandleKeyPress(KeyboardEventArgs e)

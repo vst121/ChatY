@@ -79,19 +79,37 @@ public class ChatHub : Hub
         var userId = _authState.GetCurrentUserId();
         if (userId == null) return;
 
-        var type = Enum.Parse<MessageType>(messageType);
-        var message = await _messageService.SendMessageAsync(chatId, userId, content, type);
-
-        await Clients.Group(chatId).SendAsync("MessageReceived", new
+        try
         {
-            message.Id,
-            message.ChatId,
-            message.SenderId,
-            message.Content,
-            message.Type,
-            message.SentAt,
-            Sender = new { message.Sender.UserName, message.Sender.DisplayName, message.Sender.ProfilePhotoUrl }
-        });
+            var type = Enum.Parse<MessageType>(messageType);
+            var message = await _messageService.SendMessageAsync(chatId, userId, content, type);
+
+            await Clients.Group(chatId).SendAsync("MessageReceived", new
+            {
+                message.Id,
+                message.ChatId,
+                message.SenderId,
+                message.Content,
+                message.Type,
+                message.SentAt,
+                Sender = new { message.Sender.UserName, message.Sender.DisplayName, message.Sender.ProfilePhotoUrl }
+            });
+        }
+        catch (ArgumentException ex) when (ex.Message == "Chat not found")
+        {
+            _logger.LogWarning("Attempted to send message to non-existent chat {ChatId} by user {UserId}", chatId, userId);
+            await Clients.Caller.SendAsync("Error", "The chat no longer exists.");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("Unauthorized message send attempt by user {UserId} in chat {ChatId}: {Message}", userId, chatId, ex.Message);
+            await Clients.Caller.SendAsync("Error", "You are not authorized to send messages in this chat.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error sending message in chat {ChatId} by user {UserId}", chatId, userId);
+            await Clients.Caller.SendAsync("Error", "An unexpected error occurred while sending the message.");
+        }
     }
 
     public async Task StartTyping(string chatId)
