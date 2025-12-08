@@ -1,4 +1,5 @@
 @using ChatY.Core.Entities
+@using ChatY.Services
 @using ChatY.Services.Interfaces
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.SignalR.Client
@@ -58,7 +59,7 @@
                 @foreach (var participant in Participants)
                 {
                     <div class="participant-item">
-                        <span class="participant-name">@(await GetParticipantName(participant.UserId))</span>
+                        <span class="participant-name">@participant.UserId</span>
                         <div class="participant-status">
                             @if (participant.IsMuted)
                             {
@@ -95,7 +96,7 @@
                     </button>
                     @if (IsVideoEnabled)
                     {
-                        <select class="form-select form-select-sm video-quality-select" @bind="videoQuality" @onchange="ChangeVideoQuality">
+                        <select class="form-select form-select-sm video-quality-select" @bind="videoQuality">
                             <option value="LD">LD</option>
                             <option value="SD">SD</option>
                             <option value="HD">HD</option>
@@ -193,9 +194,9 @@
             HandleParticipantJoined(data);
         });
 
-        hubConnection.On<dynamic>("CallParticipantLeft", (data) =>
+        hubConnection.On<dynamic>("CallParticipantLeft", async (data) =>
         {
-            HandleParticipantLeft(data);
+            await HandleParticipantLeft(data);
         });
 
         hubConnection.On<dynamic>("CallEnded", async (data) =>
@@ -303,14 +304,14 @@
         StateHasChanged();
     }
 
-    private void HandleParticipantLeft(dynamic data)
+    private async Task HandleParticipantLeft(dynamic data)
     {
         var newParticipants = data.Participants.ToObject<List<CallParticipant>>();
         participants = newParticipants;
 
         if (data.CallEnded)
         {
-            EndCallLocally();
+            await EndCallLocally();
         }
 
         StateHasChanged();
