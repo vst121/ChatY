@@ -10,10 +10,10 @@
     <div class="chat-header">
         <h5>@ChatName</h5>
         <div class="chat-actions">
-            <button class="btn btn-sm btn-link" @onclick="StartVoiceCall">
+            <button class="btn btn-sm btn-link" @onclick="() => StartCall('Voice')" title="Start voice call">
                 <i class="fas fa-phone"></i>
             </button>
-            <button class="btn btn-sm btn-link" @onclick="StartVideoCall">
+            <button class="btn btn-sm btn-link" @onclick="() => StartCall('Video')" title="Start video call">
                 <i class="fas fa-video"></i>
             </button>
             <button class="btn btn-sm btn-link"><i class="fas fa-ellipsis-v"></i></button>
@@ -232,22 +232,6 @@
     }
 
     // Call methods
-    private async Task StartVoiceCall()
-    {
-        if (callWindow == null) return;
-
-        currentCallType = "Voice";
-        await callWindow.StartCall();
-    }
-
-    private async Task StartVideoCall()
-    {
-        if (callWindow == null) return;
-
-        currentCallType = "Video";
-        await callWindow.StartCall();
-    }
-
     private async Task StartCall(string callType)
     {
         if (callWindow == null) return;

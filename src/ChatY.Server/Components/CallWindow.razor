@@ -1,0 +1,563 @@
+@using ChatY.Core.Entities
+@using ChatY.Services.Interfaces
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.JSInterop
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+<div class="call-window @(IsMinimized ? "minimized" : "")" style="@(IsVisible ? "" : "display: none;")">
+    <div class="call-header">
+        <div class="call-info">
+            <span class="call-type">@CallType call</span>
+            <span class="call-duration" id="call-duration">@Duration</span>
+        </div>
+        <div class="call-controls">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleMinimize">
+                <i class="fas @(IsMinimized ? "fa-expand" : "fa-minus")"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger" @onclick="EndCall">
+                <i class="fas fa-phone-slash"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="call-content">
+        <div class="participants-grid" id="call-participants">
+            <!-- Participant videos will be added here by JavaScript -->
+        </div>
+
+        @if (Participants.Any())
+        {
+            <div class="participants-list">
+                <h6>Participants (@Participants.Count())</h6>
+                @foreach (var participant in Participants)
+                {
+                    <div class="participant-item">
+                        <span class="participant-name">@GetParticipantName(participant.UserId)</span>
+                        <div class="participant-status">
+                            @if (participant.IsMuted)
+                            {
+                                <i class="fas fa-microphone-slash text-muted"></i>
+                            }
+                            @if (participant.IsVideoEnabled)
+                            {
+                                <i class="fas fa-video text-success"></i>
+                            }
+                            @if (participant.IsScreenSharing)
+                            {
+                                <i class="fas fa-desktop text-primary"></i>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="call-footer">
+        <div class="call-actions">
+            <button class="btn btn-circle @(IsAudioEnabled ? "btn-success" : "btn-danger")" @onclick="ToggleMute"
+                title="@(IsAudioEnabled ? "Mute" : "Unmute")">
+                <i class="fas fa-microphone@(IsAudioEnabled ? "" : "-slash")"></i>
+            </button>
+
+            @if (CallType == "Video")
+            {
+                <button class="btn btn-circle @(IsVideoEnabled ? "btn-success" : "btn-secondary")" @onclick="ToggleVideo"
+                    title="@(IsVideoEnabled ? "Turn off video" : "Turn on video")">
+                    <i class="fas fa-video@(IsVideoEnabled ? "" : "-slash")"></i>
+                </button>
+            }
+
+            <button class="btn btn-circle @(IsScreenSharing ? "btn-primary" : "btn-secondary")"
+                @onclick="ToggleScreenShare" title="@(IsScreenSharing ? "Stop sharing" : "Share screen")">
+                <i class="fas fa-desktop"></i>
+            </button>
+
+            <button class="btn btn-circle btn-danger" @onclick="EndCall" title="End call">
+                <i class="fas fa-phone-slash"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string ChatId { get; set; } = string.Empty;
+    [Parameter] public string CallId { get; set; } = string.Empty;
+    [Parameter] public string CallType { get; set; } = "Voice";
+    [Parameter] public EventCallback<bool> OnCallEnded { get; set; }
+
+    private HubConnection? hubConnection;
+    private System.Timers.Timer? durationTimer;
+    private DateTime callStartTime;
+    private bool isVisible = false;
+    private bool isMinimized = false;
+    private List<CallParticipant> participants = new();
+    private bool isAudioEnabled = true;
+    private bool isVideoEnabled = false;
+    private bool isScreenSharing = false;
+
+    public bool IsVisible
+    {
+        get => isVisible;
+        set
+        {
+            if (isVisible != value)
+            {
+                isVisible = value;
+                StateHasChanged();
+            }
+        }
+    }
+
+    public bool IsMinimized
+    {
+        get => isMinimized;
+        set
+        {
+            if (isMinimized != value)
+            {
+                isMinimized = value;
+                StateHasChanged();
+            }
+        }
+    }
+
+    public string Duration => durationTimer != null ?
+    TimeSpan.FromSeconds((DateTime.Now - callStartTime).TotalSeconds).ToString(@"mm\:ss") : "00:00";
+
+    public IEnumerable<CallParticipant> Participants => participants;
+
+    public bool IsAudioEnabled => isAudioEnabled;
+    public bool IsVideoEnabled => isVideoEnabled;
+    public bool IsScreenSharing => isScreenSharing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await InitializeSignalR();
+        await InitializeCallManager();
+    }
+
+    private async Task InitializeSignalR()
+    {
+        hubConnection = new HubConnectionBuilder()
+        .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+        .Build();
+
+        // Set up call event handlers
+        hubConnection.On<dynamic>("CallStarted", async (callData) =>
+        {
+            await HandleCallStarted(callData);
+        });
+
+        hubConnection.On<dynamic>("CallParticipantJoined", (data) =>
+        {
+            HandleParticipantJoined(data);
+        });
+
+        hubConnection.On<dynamic>("CallParticipantLeft", (data) =>
+        {
+            HandleParticipantLeft(data);
+        });
+
+        hubConnection.On<dynamic>("CallEnded", async (data) =>
+        {
+            await HandleCallEnded(data);
+        });
+
+        hubConnection.On<dynamic>("ParticipantMuted", (data) =>
+        {
+            HandleParticipantMuted(data);
+        });
+
+        hubConnection.On<dynamic>("ParticipantVideoToggled", (data) =>
+        {
+            HandleParticipantVideoToggled(data);
+        });
+
+        hubConnection.On<dynamic>("ParticipantScreenShareToggled", (data) =>
+        {
+            HandleParticipantScreenShareToggled(data);
+        });
+
+        await hubConnection.StartAsync();
+        await hubConnection.SendAsync("JoinChat", ChatId);
+    }
+
+    private async Task InitializeCallManager()
+    {
+        // Initialize WebRTC call manager via JavaScript interop
+        await JSRuntime.InvokeVoidAsync("initializeWebRTCCallManager", hubConnection);
+    }
+
+    public async Task StartCall()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("startWebRTCCall", ChatId, CallType);
+            IsVisible = true;
+            callStartTime = DateTime.Now;
+            StartDurationTimer();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error starting call: {ex.Message}");
+        }
+    }
+
+    public async Task JoinCall(string callId)
+    {
+        CallId = callId;
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("joinWebRTCCall", callId);
+            IsVisible = true;
+            callStartTime = DateTime.Now;
+            StartDurationTimer();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error joining call: {ex.Message}");
+        }
+    }
+
+    private async Task HandleCallStarted(dynamic callData)
+    {
+        CallId = callData.Id;
+        CallType = callData.CallType;
+        participants = callData.Participants.ToObject<List<CallParticipant>>();
+
+        // If this user started the call, they're already joined
+        // If another user started, join the call
+        if (!participants.Any(p => p.UserId == GetCurrentUserId()))
+        {
+            await JoinCall(CallId);
+        }
+        else
+        {
+            IsVisible = true;
+            callStartTime = DateTime.Now;
+            StartDurationTimer();
+        }
+
+        StateHasChanged();
+    }
+
+    private void HandleParticipantJoined(dynamic data)
+    {
+        // Update participants list
+        var newParticipants = data.Participants.ToObject<List<CallParticipant>>();
+        participants = newParticipants;
+        StateHasChanged();
+    }
+
+    private void HandleParticipantLeft(dynamic data)
+    {
+        var newParticipants = data.Participants.ToObject<List<CallParticipant>>();
+        participants = newParticipants;
+
+        if (data.CallEnded)
+        {
+            EndCallLocally();
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task HandleCallEnded(dynamic data)
+    {
+        await EndCallLocally();
+    }
+
+    private void HandleParticipantMuted(dynamic data)
+    {
+        var participant = participants.FirstOrDefault(p => p.UserId == data.UserId);
+        if (participant != null)
+        {
+            participant.IsMuted = data.IsMuted;
+            if (data.UserId == GetCurrentUserId())
+            {
+                isAudioEnabled = !data.IsMuted;
+            }
+            StateHasChanged();
+        }
+    }
+
+    private void HandleParticipantVideoToggled(dynamic data)
+    {
+        var participant = participants.FirstOrDefault(p => p.UserId == data.UserId);
+        if (participant != null)
+        {
+            participant.IsVideoEnabled = data.IsVideoEnabled;
+            if (data.UserId == GetCurrentUserId())
+            {
+                isVideoEnabled = data.IsVideoEnabled;
+            }
+            StateHasChanged();
+        }
+    }
+
+    private void HandleParticipantScreenShareToggled(dynamic data)
+    {
+        var participant = participants.FirstOrDefault(p => p.UserId == data.UserId);
+        if (participant != null)
+        {
+            participant.IsScreenSharing = data.IsScreenSharing;
+            if (data.UserId == GetCurrentUserId())
+            {
+                isScreenSharing = data.IsScreenSharing;
+            }
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleMute()
+    {
+        try
+        {
+            isAudioEnabled = await JSRuntime.InvokeAsync<bool>("toggleWebRTCMute");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error toggling mute: {ex.Message}");
+        }
+    }
+
+    private async Task ToggleVideo()
+    {
+        try
+        {
+            isVideoEnabled = await JSRuntime.InvokeAsync<bool>("toggleWebRTCVideo");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error toggling video: {ex.Message}");
+        }
+    }
+
+    private async Task ToggleScreenShare()
+    {
+        try
+        {
+            isScreenSharing = await JSRuntime.InvokeAsync<bool>("toggleWebRTCScreenShare");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error toggling screen share: {ex.Message}");
+        }
+    }
+
+    private void ToggleMinimize()
+    {
+        IsMinimized = !IsMinimized;
+    }
+
+    private async Task EndCall()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("endWebRTCCall");
+            await EndCallLocally();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error ending call: {ex.Message}");
+        }
+    }
+
+    private async Task EndCallLocally()
+    {
+        StopDurationTimer();
+        IsVisible = false;
+        participants.Clear();
+        await OnCallEnded.InvokeAsync(true);
+        StateHasChanged();
+    }
+
+    private void StartDurationTimer()
+    {
+        durationTimer = new System.Timers.Timer(1000);
+        durationTimer.Elapsed += (sender, e) => InvokeAsync(StateHasChanged);
+        durationTimer.Start();
+    }
+
+    private void StopDurationTimer()
+    {
+        durationTimer?.Stop();
+        durationTimer?.Dispose();
+        durationTimer = null;
+    }
+
+    private string GetParticipantName(string userId)
+    {
+        // TODO: Get actual user name from service
+        return $"User {userId}";
+    }
+
+    private string GetCurrentUserId()
+    {
+        // TODO: Get from authentication
+        return "user1";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        StopDurationTimer();
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("leaveWebRTCCall");
+        }
+        catch { }
+
+        if (hubConnection != null)
+        {
+            await hubConnection.SendAsync("LeaveChat", ChatId);
+            await hubConnection.DisposeAsync();
+        }
+    }
+}
+
+<style>
+    .call-window {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        width: 400px;
+        height: 600px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .call-window.minimized {
+        height: 60px;
+        width: 300px;
+    }
+
+    .call-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 1px solid #e9ecef;
+        background: #f8f9fa;
+    }
+
+    .call-info {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .call-type {
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .call-duration {
+        font-size: 12px;
+        color: #6c757d;
+    }
+
+    .call-controls {
+        display: flex;
+        gap: 8px;
+    }
+
+    .call-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .participants-grid {
+        flex: 1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 16px;
+        overflow-y: auto;
+    }
+
+    .participants-list {
+        padding: 16px;
+        border-top: 1px solid #e9ecef;
+        background: #f8f9fa;
+    }
+
+    .participants-list h6 {
+        margin-bottom: 12px;
+        font-size: 14px;
+    }
+
+    .participant-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        font-size: 14px;
+    }
+
+    .participant-status {
+        display: flex;
+        gap: 8px;
+    }
+
+    .call-footer {
+        padding: 16px;
+        border-top: 1px solid #e9ecef;
+        background: white;
+    }
+
+    .call-actions {
+        display: flex;
+        justify-content: center;
+        gap: 16px;
+    }
+
+    .btn-circle {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        font-size: 18px;
+        transition: all 0.2s;
+    }
+
+    .btn-circle:hover {
+        transform: scale(1.05);
+    }
+
+    .btn-circle.btn-success {
+        background: #28a745;
+        color: white;
+    }
+
+    .btn-circle.btn-danger {
+        background: #dc3545;
+        color: white;
+    }
+
+    .btn-circle.btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .btn-circle.btn-primary {
+        background: #007bff;
+        color: white;
+    }
+</style>

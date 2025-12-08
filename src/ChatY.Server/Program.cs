@@ -21,6 +21,7 @@ builder.Services.AddDbContext<ChatYDbContext>(options =>
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<IMessageService, MessageService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ICallService, CallService>();
 
 // Azure Services
 builder.Services.AddScoped<ChatY.Infrastructure.Services.IAzureBlobStorageService, ChatY.Infrastructure.Services.AzureBlobStorageService>();

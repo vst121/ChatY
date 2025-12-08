@@ -9,6 +9,7 @@ public class ChatHub : Hub
     private readonly IMessageService _messageService;
     private readonly IChatService _chatService;
     private readonly IUserService _userService;
+    private readonly ICallService _callService;
     private readonly ILogger<ChatHub> _logger;
     private static readonly Dictionary<string, string> _userConnections = new();
 
@@ -16,11 +17,13 @@ public class ChatHub : Hub
         IMessageService messageService,
         IChatService chatService,
         IUserService userService,
+        ICallService callService,
         ILogger<ChatHub> logger)
     {
         _messageService = messageService;
         _chatService = chatService;
         _userService = userService;
+        _callService = callService;
         _logger = logger;
     }
 
@@ -118,7 +121,7 @@ public class ChatHub : Hub
 
         var reaction = await _messageService.AddReactionAsync(messageId, userId, emoji);
         var message = await _messageService.GetMessageByIdAsync(messageId);
-        
+
         if (message != null)
         {
             await Clients.Group(message.ChatId).SendAsync("ReactionAdded", new
@@ -136,7 +139,7 @@ public class ChatHub : Hub
 
         await _messageService.RemoveReactionAsync(messageId, userId, emoji);
         var message = await _messageService.GetMessageByIdAsync(messageId);
-        
+
         if (message != null)
         {
             await Clients.Group(message.ChatId).SendAsync("ReactionRemoved", new
@@ -155,7 +158,7 @@ public class ChatHub : Hub
 
         await _messageService.MarkMessageAsReadAsync(messageId, userId);
         var message = await _messageService.GetMessageByIdAsync(messageId);
-        
+
         if (message != null)
         {
             await Clients.Group(message.ChatId).SendAsync("MessageRead", new
@@ -164,6 +167,223 @@ public class ChatHub : Hub
                 UserId = userId
             });
         }
+    }
+
+    // Call methods
+    public async Task StartCall(string chatId, string callType)
+    {
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
+        if (userId == null) return;
+
+        var type = Enum.Parse<CallType>(callType);
+        var call = await _callService.StartCallAsync(chatId, userId, type);
+
+        await Clients.Group(chatId).SendAsync("CallStarted", new
+        {
+            call.Id,
+            call.ChatId,
+            call.InitiatorId,
+            CallType = call.Type.ToString(),
+            call.Status,
+            call.StartedAt,
+            Participants = call.Participants.Select(p => new
+            {
+                p.Id,
+                p.UserId,
+                p.IsMuted,
+                p.IsVideoEnabled,
+                p.IsScreenSharing,
+                p.JoinedAt
+            })
+        });
+
+        _logger.LogInformation("Call {CallId} started by user {UserId} in chat {ChatId}", call.Id, userId, chatId);
+    }
+
+    public async Task JoinCall(string callId)
+    {
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
+        if (userId == null) return;
+
+        var success = await _callService.JoinCallAsync(callId, userId);
+        if (!success) return;
+
+        var call = await _callService.GetCallByIdAsync(callId);
+        if (call == null) return;
+
+        await Clients.Group(call.ChatId).SendAsync("CallParticipantJoined", new
+        {
+            CallId = callId,
+            UserId = userId,
+            Participants = call.Participants.Where(p => p.LeftAt == null).Select(p => new
+            {
+                p.Id,
+                p.UserId,
+                p.IsMuted,
+                p.IsVideoEnabled,
+                p.IsScreenSharing,
+                p.JoinedAt
+            })
+        });
+
+        _logger.LogInformation("User {UserId} joined call {CallId}", userId, callId);
+    }
+
+    public async Task LeaveCall(string callId)
+    {
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
+        if (userId == null) return;
+
+        var success = await _callService.LeaveCallAsync(callId, userId);
+        if (!success) return;
+
+        var call = await _callService.GetCallByIdAsync(callId);
+        if (call == null) return;
+
+        await Clients.Group(call.ChatId).SendAsync("CallParticipantLeft", new
+        {
+            CallId = callId,
+            UserId = userId,
+            CallEnded = call.Status == CallStatus.Ended,
+            Participants = call.Participants.Where(p => p.LeftAt == null).Select(p => new
+            {
+                p.Id,
+                p.UserId,
+                p.IsMuted,
+                p.IsVideoEnabled,
+                p.IsScreenSharing,
+                p.JoinedAt
+            })
+        });
+
+        _logger.LogInformation("User {UserId} left call {CallId}", userId, callId);
+    }
+
+    public async Task EndCall(string callId)
+    {
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
+        if (userId == null) return;
+
+        var success = await _callService.EndCallAsync(callId);
+        if (!success) return;
+
+        var call = await _callService.GetCallByIdAsync(callId);
+        if (call == null) return;
+
+        await Clients.Group(call.ChatId).SendAsync("CallEnded", new
+        {
+            CallId = callId,
+            EndedAt = call.EndedAt,
+            Duration = call.Duration
+        });
+
+        _logger.LogInformation("Call {CallId} ended by user {UserId}", callId, userId);
+    }
+
+    public async Task ToggleMute(string callId)
+    {
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
+        if (userId == null) return;
+
+        var success = await _callService.ToggleMuteAsync(callId, userId);
+        if (!success) return;
+
+        var call = await _callService.GetCallByIdAsync(callId);
+        if (call == null) return;
+
+        var participant = call.Participants.FirstOrDefault(p => p.UserId == userId && p.LeftAt == null);
+        if (participant == null) return;
+
+        await Clients.Group(call.ChatId).SendAsync("ParticipantMuted", new
+        {
+            CallId = callId,
+            UserId = userId,
+            IsMuted = participant.IsMuted
+        });
+    }
+
+    public async Task ToggleVideo(string callId)
+    {
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
+        if (userId == null) return;
+
+        var success = await _callService.ToggleVideoAsync(callId, userId);
+        if (!success) return;
+
+        var call = await _callService.GetCallByIdAsync(callId);
+        if (call == null) return;
+
+        var participant = call.Participants.FirstOrDefault(p => p.UserId == userId && p.LeftAt == null);
+        if (participant == null) return;
+
+        await Clients.Group(call.ChatId).SendAsync("ParticipantVideoToggled", new
+        {
+            CallId = callId,
+            UserId = userId,
+            IsVideoEnabled = participant.IsVideoEnabled
+        });
+    }
+
+    public async Task ToggleScreenShare(string callId)
+    {
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
+        if (userId == null) return;
+
+        var success = await _callService.ToggleScreenShareAsync(callId, userId);
+        if (!success) return;
+
+        var call = await _callService.GetCallByIdAsync(callId);
+        if (call == null) return;
+
+        var participant = call.Participants.FirstOrDefault(p => p.UserId == userId && p.LeftAt == null);
+        if (participant == null) return;
+
+        await Clients.Group(call.ChatId).SendAsync("ParticipantScreenShareToggled", new
+        {
+            CallId = callId,
+            UserId = userId,
+            IsScreenSharing = participant.IsScreenSharing
+        });
+    }
+
+    // WebRTC signaling methods
+    public async Task SendOffer(string callId, string targetUserId, string offer)
+    {
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
+        if (userId == null) return;
+
+        await Clients.User(targetUserId).SendAsync("ReceiveOffer", new
+        {
+            CallId = callId,
+            FromUserId = userId,
+            Offer = offer
+        });
+    }
+
+    public async Task SendAnswer(string callId, string targetUserId, string answer)
+    {
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
+        if (userId == null) return;
+
+        await Clients.User(targetUserId).SendAsync("ReceiveAnswer", new
+        {
+            CallId = callId,
+            FromUserId = userId,
+            Answer = answer
+        });
+    }
+
+    public async Task SendIceCandidate(string callId, string targetUserId, string candidate)
+    {
+        var userId = Context.UserIdentifier ?? "user1"; // Default to user1 for testing
+        if (userId == null) return;
+
+        await Clients.User(targetUserId).SendAsync("ReceiveIceCandidate", new
+        {
+            CallId = callId,
+            FromUserId = userId,
+            Candidate = candidate
+        });
     }
 }
 
