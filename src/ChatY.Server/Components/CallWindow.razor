@@ -5,6 +5,8 @@
 @using Microsoft.JSInterop
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@inject AuthenticationStateService AuthState
+@inject IUserService UserService
 @implements IAsyncDisposable
 
 <div class="call-window @(IsMinimized ? "minimized" : "")" style="@(IsVisible ? "" : "display: none;")">
@@ -23,6 +25,27 @@
         </div>
     </div>
 
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="call-error">
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                @errorMessage
+                <button type="button" class="btn-close" @onclick="ClearError" aria-label="Close"></button>
+            </div>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="call-loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Connecting...</span>
+            </div>
+            <span class="ms-2">Connecting to call...</span>
+        </div>
+    }
+
     <div class="call-content">
         <div class="participants-grid" id="call-participants">
             <!-- Participant videos will be added here by JavaScript -->
@@ -35,7 +58,7 @@
                 @foreach (var participant in Participants)
                 {
                     <div class="participant-item">
-                        <span class="participant-name">@GetParticipantName(participant.UserId)</span>
+                        <span class="participant-name">@(await GetParticipantName(participant.UserId))</span>
                         <div class="participant-status">
                             @if (participant.IsMuted)
                             {
@@ -65,10 +88,20 @@
 
             @if (CallType == "Video")
             {
-                <button class="btn btn-circle @(IsVideoEnabled ? "btn-success" : "btn-secondary")" @onclick="ToggleVideo"
-                    title="@(IsVideoEnabled ? "Turn off video" : "Turn on video")">
-                    <i class="fas fa-video@(IsVideoEnabled ? "" : "-slash")"></i>
-                </button>
+                <div class="video-controls">
+                    <button class="btn btn-circle @(IsVideoEnabled ? "btn-success" : "btn-secondary")" @onclick="ToggleVideo"
+                        title="@(IsVideoEnabled ? "Turn off video" : "Turn on video")">
+                        <i class="fas fa-video@(IsVideoEnabled ? "" : "-slash")"></i>
+                    </button>
+                    @if (IsVideoEnabled)
+                    {
+                        <select class="form-select form-select-sm video-quality-select" @bind="videoQuality" @onchange="ChangeVideoQuality">
+                            <option value="LD">LD</option>
+                            <option value="SD">SD</option>
+                            <option value="HD">HD</option>
+                        </select>
+                    }
+                </div>
             }
 
             <button class="btn btn-circle @(IsScreenSharing ? "btn-primary" : "btn-secondary")"
@@ -98,6 +131,9 @@
     private bool isAudioEnabled = true;
     private bool isVideoEnabled = false;
     private bool isScreenSharing = false;
+    private string? errorMessage;
+    private bool isLoading = false;
+    private string videoQuality = "HD"; // HD, SD, LD
 
     public bool IsVisible
     {
@@ -196,13 +232,20 @@
     {
         try
         {
+            SetLoading(true);
+            ClearError();
+
             await JSRuntime.InvokeVoidAsync("startWebRTCCall", ChatId, CallType);
             IsVisible = true;
             callStartTime = DateTime.Now;
             StartDurationTimer();
+
+            SetLoading(false);
         }
         catch (Exception ex)
         {
+            SetLoading(false);
+            SetError($"Failed to start call: {ex.Message}");
             Console.Error.WriteLine($"Error starting call: {ex.Message}");
         }
     }
@@ -212,13 +255,20 @@
         CallId = callId;
         try
         {
+            SetLoading(true);
+            ClearError();
+
             await JSRuntime.InvokeVoidAsync("joinWebRTCCall", callId);
             IsVisible = true;
             callStartTime = DateTime.Now;
             StartDurationTimer();
+
+            SetLoading(false);
         }
         catch (Exception ex)
         {
+            SetLoading(false);
+            SetError($"Failed to join call: {ex.Message}");
             Console.Error.WriteLine($"Error joining call: {ex.Message}");
         }
     }
@@ -352,9 +402,40 @@
         }
     }
 
+    private async Task ChangeVideoQuality()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("changeVideoQuality", videoQuality);
+        }
+        catch (Exception ex)
+        {
+            SetError($"Failed to change video quality: {ex.Message}");
+            Console.Error.WriteLine($"Error changing video quality: {ex.Message}");
+        }
+    }
+
     private void ToggleMinimize()
     {
         IsMinimized = !IsMinimized;
+    }
+
+    private void ClearError()
+    {
+        errorMessage = null;
+        StateHasChanged();
+    }
+
+    private void SetError(string message)
+    {
+        errorMessage = message;
+        StateHasChanged();
+    }
+
+    private void SetLoading(bool loading)
+    {
+        isLoading = loading;
+        StateHasChanged();
     }
 
     private async Task EndCall()
@@ -393,16 +474,28 @@
         durationTimer = null;
     }
 
-    private string GetParticipantName(string userId)
+    private async Task<string> GetParticipantName(string userId)
     {
-        // TODO: Get actual user name from service
+        try
+        {
+            var user = await UserService.GetUserByIdAsync(userId);
+            if (user != null)
+            {
+                return user.DisplayName ?? user.UserName ?? $"User {userId}";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error getting user name for {userId}: {ex.Message}");
+        }
+
+        // Fallback to placeholder
         return $"User {userId}";
     }
 
     private string GetCurrentUserId()
     {
-        // TODO: Get from authentication
-        return "user1";
+        return AuthState.GetCurrentUserId() ?? "user1";
     }
 
     public async ValueTask DisposeAsync()
@@ -559,5 +652,40 @@
     .btn-circle.btn-primary {
         background: #007bff;
         color: white;
+    }
+
+    .call-error {
+        padding: 8px 16px;
+        background: #f8f9fa;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .call-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        color: #6c757d;
+        font-size: 14px;
+    }
+
+    .call-loading .spinner-border {
+        width: 1rem;
+        height: 1rem;
+    }
+
+    .video-controls {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .video-quality-select {
+        width: 60px;
+        font-size: 12px;
+        padding: 2px 4px;
+        border-radius: 4px;
+        border: 1px solid #ced4da;
     }
 </style>

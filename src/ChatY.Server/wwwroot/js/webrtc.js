@@ -7,6 +7,7 @@ class WebRTCCallManager {
         this.isAudioEnabled = true;
         this.isVideoEnabled = false;
         this.isScreenSharing = false;
+        this.videoQuality = 'HD'; // HD, SD, LD
         this.configuration = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -15,13 +16,44 @@ class WebRTCCallManager {
         };
     }
 
+    getVideoConstraints(quality = this.videoQuality) {
+        const constraints = {
+            audio: true,
+            video: false
+        };
+
+        if (quality === 'HD') {
+            constraints.video = {
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                frameRate: { ideal: 30 }
+            };
+        } else if (quality === 'SD') {
+            constraints.video = {
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                frameRate: { ideal: 24 }
+            };
+        } else if (quality === 'LD') {
+            constraints.video = {
+                width: { ideal: 320 },
+                height: { ideal: 240 },
+                frameRate: { ideal: 15 }
+            };
+        }
+
+        return constraints;
+    }
+
     async startCall(chatId, callType) {
         try {
-            // Get user media
-            const constraints = {
-                audio: true,
-                video: callType === 'Video'
-            };
+            // Get user media with appropriate quality
+            const constraints = this.getVideoConstraints();
+            if (callType === 'Video') {
+                constraints.video = this.getVideoConstraints().video;
+            } else {
+                constraints.video = false;
+            }
 
             this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
             this.isVideoEnabled = callType === 'Video';
@@ -249,9 +281,10 @@ class WebRTCCallManager {
             });
             this.isVideoEnabled = false;
         } else {
-            // Turn on video
+            // Turn on video with current quality settings
             try {
-                const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const constraints = this.getVideoConstraints();
+                const newStream = await navigator.mediaDevices.getUserMedia({ video: constraints.video });
                 const videoTrack = newStream.getVideoTracks()[0];
                 this.localStream.addTrack(videoTrack);
                 this.isVideoEnabled = true;
@@ -276,6 +309,41 @@ class WebRTCCallManager {
         }
 
         return this.isVideoEnabled;
+    }
+
+    async changeVideoQuality(quality) {
+        this.videoQuality = quality;
+
+        if (this.isVideoEnabled && this.localStream) {
+            try {
+                // Get new video constraints
+                const constraints = this.getVideoConstraints();
+
+                // Replace the current video track with new quality
+                const videoTracks = this.localStream.getVideoTracks();
+                if (videoTracks.length > 0) {
+                    const newStream = await navigator.mediaDevices.getUserMedia({ video: constraints.video });
+                    const newVideoTrack = newStream.getVideoTracks()[0];
+
+                    // Replace track in all peer connections
+                    this.peerConnections.forEach(peerConnection => {
+                        const sender = peerConnection.getSenders().find(s => s.track?.kind === 'video');
+                        if (sender) {
+                            sender.replaceTrack(newVideoTrack);
+                        }
+                    });
+
+                    // Replace track in local stream
+                    const oldTrack = videoTracks[0];
+                    this.localStream.removeTrack(oldTrack);
+                    this.localStream.addTrack(newVideoTrack);
+                    oldTrack.stop();
+                }
+            } catch (error) {
+                console.error('Error changing video quality:', error);
+                throw error;
+            }
+        }
     }
 
     async toggleScreenShare() {
@@ -366,8 +434,8 @@ class WebRTCCallManager {
     }
 
     getCurrentUserId() {
-        // This should be implemented to get the current user ID
-        // For now, return a default value
+        // This should be implemented to get the current user ID from authentication
+        // For now, return a default value - this should be replaced with proper auth integration
         return 'user1';
     }
 }
@@ -422,6 +490,12 @@ window.endWebRTCCall = async function() {
 window.leaveWebRTCCall = async function() {
     if (webRTCCallManager) {
         await webRTCCallManager.leaveCall();
+    }
+};
+
+window.changeVideoQuality = async function(quality) {
+    if (webRTCCallManager) {
+        await webRTCCallManager.changeVideoQuality(quality);
     }
 };
 

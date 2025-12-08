@@ -6,6 +6,7 @@
 @inject IUserService UserService
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@inject AuthenticationStateService AuthState
 @implements IAsyncDisposable
 
 <PageTitle>Chats - ChatY</PageTitle>
@@ -77,10 +78,11 @@
     private Chat? selectedChat;
     private string? selectedChatId;
     private HubConnection? hubConnection;
-    private string? currentUserId = "user1"; // TODO: Get from authentication
+    private string? currentUserId;
 
     protected override async Task OnInitializedAsync()
     {
+        currentUserId = AuthState.GetCurrentUserId();
         await LoadChats();
         await InitializeSignalR();
     }
