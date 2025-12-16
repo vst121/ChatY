@@ -21,15 +21,15 @@
                 <div class="mb-3">
                     <label class="form-label">Chat Type</label>
                     <div class="form-check">
-                        <input class="form-check-input" type="radio" name="chatType" id="privateChat" value="Private"
-                            @bind="chatType" />
+                        <input type="radio" value="Private" checked="@(chatType == "Private")" @onchange='() => chatType = "Private"'
+                            class="form-check-input" name="chatType" id="privateChat" />
                         <label class="form-check-label" for="privateChat">
                             Private Chat
                         </label>
                     </div>
                     <div class="form-check">
-                        <input class="form-check-input" type="radio" name="chatType" id="groupChat" value="Group"
-                            @bind="chatType" />
+                        <input type="radio" value="Group" checked="@(chatType == "Group")" @onchange='() => chatType = "Group"'
+                            class="form-check-input" name="chatType" id="groupChat" />
                         <label class="form-check-label" for="groupChat">
                             Group Chat
                         </label>
