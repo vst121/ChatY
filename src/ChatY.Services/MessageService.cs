@@ -19,10 +19,15 @@ public class MessageService : IMessageService
 
     public async Task<Message> SendMessageAsync(string chatId, string senderId, string content, MessageType type)
     {
+        _logger.LogInformation("Attempting to send message to chat {ChatId} by user {SenderId}", chatId, senderId);
+
         // Validate chat exists
         var chat = await _context.Chats.FindAsync(chatId);
         if (chat == null)
+        {
+            _logger.LogWarning("Chat {ChatId} not found for message send by user {SenderId}", chatId, senderId);
             throw new ArgumentException("Chat not found");
+        }
 
         // Validate sender is a participant
         var isParticipant = await _context.ChatParticipants

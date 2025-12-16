@@ -90,8 +90,8 @@
             @if (CallType == "Video")
             {
                 <div class="video-controls">
-                    <button class="btn btn-circle @(IsVideoEnabled ? "btn-success" : "btn-secondary")" @onclick="ToggleVideo"
-                        title="@(IsVideoEnabled ? "Turn off video" : "Turn on video")">
+                    <button class="btn btn-circle @(IsVideoEnabled ? "btn-success" : "btn-secondary")"
+                        @onclick="ToggleVideo" title="@(IsVideoEnabled ? "Turn off video" : "Turn on video")">
                         <i class="fas fa-video@(IsVideoEnabled ? "" : "-slash")"></i>
                     </button>
                     @if (IsVideoEnabled)
@@ -235,6 +235,13 @@
         {
             SetLoading(true);
             ClearError();
+
+            // Check if WebRTC is supported
+            var isSupported = await JSRuntime.InvokeAsync<bool>("isWebRTCSupported");
+            if (!isSupported)
+            {
+                throw new Exception("WebRTC is not supported in this browser");
+            }
 
             await JSRuntime.InvokeVoidAsync("startWebRTCCall", ChatId, CallType);
             IsVisible = true;

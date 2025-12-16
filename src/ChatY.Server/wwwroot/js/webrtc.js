@@ -48,11 +48,9 @@ class WebRTCCallManager {
     async startCall(chatId, callType) {
         try {
             // Get user media with appropriate quality
-            const constraints = this.getVideoConstraints();
+            const constraints = { audio: true, video: false };
             if (callType === 'Video') {
                 constraints.video = this.getVideoConstraints().video;
-            } else {
-                constraints.video = false;
             }
 
             this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -62,7 +60,15 @@ class WebRTCCallManager {
             await this.signalRConnection.invoke('StartCall', chatId, callType);
         } catch (error) {
             console.error('Error starting call:', error);
-            throw error;
+            if (error.name === 'NotAllowedError') {
+                throw new Error('Microphone/camera access denied. Please allow access to make calls.');
+            } else if (error.name === 'NotFoundError') {
+                throw new Error('No microphone/camera found. Please check your devices.');
+            } else if (error.name === 'NotReadableError') {
+                throw new Error('Microphone/camera is already in use by another application.');
+            } else {
+                throw new Error(`Failed to access media devices: ${error.message}`);
+            }
         }
     }
 
@@ -72,10 +78,7 @@ class WebRTCCallManager {
 
             // Get user media if not already obtained
             if (!this.localStream) {
-                const constraints = {
-                    audio: true,
-                    video: this.isVideoEnabled
-                };
+                const constraints = { audio: true, video: this.isVideoEnabled };
                 this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
             }
 
@@ -86,7 +89,15 @@ class WebRTCCallManager {
             this.setupSignalingHandlers();
         } catch (error) {
             console.error('Error joining call:', error);
-            throw error;
+            if (error.name === 'NotAllowedError') {
+                throw new Error('Microphone/camera access denied. Please allow access to join the call.');
+            } else if (error.name === 'NotFoundError') {
+                throw new Error('No microphone/camera found. Please check your devices.');
+            } else if (error.name === 'NotReadableError') {
+                throw new Error('Microphone/camera is already in use by another application.');
+            } else {
+                throw new Error(`Failed to access media devices: ${error.message}`);
+            }
         }
     }
 
@@ -497,6 +508,12 @@ window.changeVideoQuality = async function(quality) {
     if (webRTCCallManager) {
         await webRTCCallManager.changeVideoQuality(quality);
     }
+};
+
+window.isWebRTCSupported = function() {
+    return !!(window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection) &&
+           !!navigator.mediaDevices &&
+           !!navigator.mediaDevices.getUserMedia;
 };
 
 // Export for use in other scripts

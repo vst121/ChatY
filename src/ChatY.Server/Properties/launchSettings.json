@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "ChatY.Server": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:61464;http://localhost:61465"
+    }
+  }
+}

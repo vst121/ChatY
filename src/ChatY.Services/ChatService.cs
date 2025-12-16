@@ -59,16 +59,32 @@ public class ChatService : IChatService
 
     public async Task<Chat?> GetChatByIdAsync(string chatId, string userId)
     {
+        _logger.LogInformation("Getting chat {ChatId} for user {UserId}", chatId, userId);
+
         var isParticipant = await _context.ChatParticipants
             .AnyAsync(cp => cp.ChatId == chatId && cp.UserId == userId);
 
         if (!isParticipant)
+        {
+            _logger.LogWarning("User {UserId} is not a participant in chat {ChatId}", userId, chatId);
             return null;
+        }
 
-        return await _context.Chats
+        var chat = await _context.Chats
             .Include(c => c.Participants)
                 .ThenInclude(p => p.User)
             .FirstOrDefaultAsync(c => c.Id == chatId);
+
+        if (chat == null)
+        {
+            _logger.LogWarning("Chat {ChatId} not found in database", chatId);
+        }
+        else
+        {
+            _logger.LogInformation("Chat {ChatId} found: {ChatName}", chatId, chat.Name);
+        }
+
+        return chat;
     }
 
     public async Task<IEnumerable<Chat>> GetUserChatsAsync(string userId)

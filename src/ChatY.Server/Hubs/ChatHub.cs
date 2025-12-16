@@ -79,6 +79,8 @@ public class ChatHub : Hub
         var userId = _authState.GetCurrentUserId();
         if (userId == null) return;
 
+        _logger.LogInformation("Hub received SendMessage: ChatId={ChatId}, UserId={UserId}, Content={Content}", chatId, userId, content);
+
         try
         {
             var type = Enum.Parse<MessageType>(messageType);

@@ -33,26 +33,38 @@
             {
                 @foreach (var chat in chats)
                 {
-                    <div class="chat-item @(selectedChatId == chat.Id ? "active" : "")" @onclick="() => SelectChat(chat.Id)">
-                        <div class="chat-item-avatar">
-                            <i class="fas fa-user-circle fa-2x"></i>
-                        </div>
-                        <div class="chat-item-content">
-                            <div class="chat-item-header">
-                                <span class="chat-item-name">@chat.Name</span>
-                                <span class="chat-item-time">@GetLastMessageTime(chat.LastMessageAt)</span>
+                    <div class="chat-item @(selectedChatId == chat.Id ? "active" : "")">
+                        <div class="chat-item-main" @onclick="() => SelectChat(chat.Id)">
+                            <div class="chat-item-avatar">
+                                <i class="fas fa-user-circle fa-2x"></i>
                             </div>
-                            <div class="chat-item-preview">
-                                @{
-                                    var unreadCount = chat.Participants.FirstOrDefault(p => p.UserId == currentUserId)?.UnreadCount
-                                    ?? 0;
-                                }
-                                @if (unreadCount > 0)
-                                {
-                                    <span class="badge bg-primary">@unreadCount</span>
-                                }
+                            <div class="chat-item-content">
+                                <div class="chat-item-header">
+                                    <span class="chat-item-name">@chat.Name</span>
+                                    <span class="chat-item-time">@GetLastMessageTime(chat.LastMessageAt)</span>
+                                </div>
+                                <div class="chat-item-preview">
+                                    @{
+                                        var unreadCount = chat.Participants.FirstOrDefault(p => p.UserId ==
+                                        currentUserId)?.UnreadCount
+                                        ?? 0;
+                                    }
+                                    @if (unreadCount > 0)
+                                    {
+                                        <span class="badge bg-primary">@unreadCount</span>
+                                    }
+                                </div>
                             </div>
                         </div>
+                        @if (CanDeleteChat(chat))
+                        {
+                            <div class="chat-item-actions">
+                                <button class="btn btn-sm btn-link text-danger" @onclick="() => DeleteChat(chat.Id)"
+                                    @onclick:stopPropagation>
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        }
                     </div>
                 }
             }
@@ -130,10 +142,41 @@
         }
     }
 
+    private bool showCreateChatDialog = false;
+
     private async Task CreateNewChat()
     {
-        // TODO: Implement create chat dialog
-        Navigation.NavigateTo("/chats/new");
+        showCreateChatDialog = true;
+    }
+
+    private async Task OnChatCreated()
+    {
+        showCreateChatDialog = false;
+        await LoadChats();
+    }
+
+    private void OnCloseCreateChatDialog()
+    {
+        showCreateChatDialog = false;
+    }
+
+    private bool CanDeleteChat(Chat chat)
+    {
+        return chat.CreatedByUserId == currentUserId;
+    }
+
+    private async Task DeleteChat(string chatId)
+    {
+        if (currentUserId != null)
+        {
+            await ChatService.DeleteChatAsync(chatId);
+            if (selectedChatId == chatId)
+            {
+                selectedChat = null;
+                selectedChatId = null;
+            }
+            await LoadChats();
+        }
     }
 
     private string GetLastMessageTime(DateTime? lastMessageAt)
@@ -153,4 +196,9 @@
             await hubConnection.DisposeAsync();
         }
     }
+}
+
+@if (showCreateChatDialog)
+{
+    <CreateChatDialog OnChatCreated="OnChatCreated" OnClose="OnCloseCreateChatDialog" />
 }

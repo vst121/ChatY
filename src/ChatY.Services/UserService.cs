@@ -123,6 +123,11 @@ public class UserService : IUserService
             .Take(50)
             .ToListAsync();
     }
+
+    public async Task<IEnumerable<User>> GetAllUsersAsync()
+    {
+        return await _context.Users.ToListAsync();
+    }
 }
 
 

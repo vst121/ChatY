@@ -14,6 +14,7 @@ public interface IUserService
     Task UnblockUserAsync(string blockerUserId, string blockedUserId);
     Task<bool> IsUserBlockedAsync(string userId1, string userId2);
     Task<IEnumerable<User>> SearchUsersAsync(string searchTerm, string currentUserId);
+    Task<IEnumerable<User>> GetAllUsersAsync();
 }
 
 

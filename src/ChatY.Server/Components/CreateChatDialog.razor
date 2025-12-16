@@ -1,0 +1,104 @@
+@using ChatY.Services
+@using ChatY.Services.Interfaces
+@inject IChatService ChatService
+@inject IUserService UserService
+@inject NavigationManager Navigation
+@inject AuthenticationStateService AuthState
+
+<div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Chat</h5>
+                <button type="button" class="btn-close" @onclick="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="chatName" class="form-label">Chat Name</label>
+                    <input type="text" class="form-control" id="chatName" @bind="chatName"
+                        placeholder="Enter chat name" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Chat Type</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="chatType" id="privateChat" value="Private"
+                            @bind="chatType" />
+                        <label class="form-check-label" for="privateChat">
+                            Private Chat
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="chatType" id="groupChat" value="Group"
+                            @bind="chatType" />
+                        <label class="form-check-label" for="groupChat">
+                            Group Chat
+                        </label>
+                    </div>
+                </div>
+                @if (chatType == "Group")
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Add Participants</label>
+                        <select class="form-select" multiple @bind="selectedParticipants">
+                            @foreach (var user in availableUsers)
+                            {
+                                <option value="@user.Id">@user.DisplayName (@user.UserName)</option>
+                            }
+                        </select>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="Close">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="CreateChat"
+                    disabled="@string.IsNullOrWhiteSpace(chatName)">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnChatCreated { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private string chatName = string.Empty;
+    private string chatType = "Private";
+    private List<User> availableUsers = new();
+    private List<string> selectedParticipants = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var currentUserId = AuthState.GetCurrentUserId();
+        if (currentUserId != null)
+        {
+            availableUsers = (await UserService.GetAllUsersAsync()).Where(u => u.Id != currentUserId).ToList();
+        }
+    }
+
+    private async Task CreateChat()
+    {
+        var currentUserId = AuthState.GetCurrentUserId();
+        if (currentUserId == null || string.IsNullOrWhiteSpace(chatName))
+            return;
+
+        try
+        {
+            var type = chatType == "Group" ? ChatType.Group : ChatType.Private;
+            var participants = selectedParticipants.Any() ? selectedParticipants : new List<string>();
+
+            var chat = await ChatService.CreateChatAsync(currentUserId, chatName, type, participants);
+            await OnChatCreated.InvokeAsync();
+            await Close();
+        }
+        catch (Exception ex)
+        {
+            // Handle error
+            Console.WriteLine($"Error creating chat: {ex.Message}");
+        }
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+}

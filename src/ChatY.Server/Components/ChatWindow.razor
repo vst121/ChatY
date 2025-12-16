@@ -154,56 +154,81 @@
 
     private async Task InitializeSignalR()
     {
-        hubConnection = new HubConnectionBuilder()
-        .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
-        .Build();
-
-        hubConnection.On<dynamic>("MessageReceived", async (messageObj) =>
+        try
         {
-            await LoadMessages();
+            hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+            .Build();
+
+            hubConnection.On<dynamic>("MessageReceived", async (messageObj) =>
+            {
+                await LoadMessages();
+                StateHasChanged();
+            });
+
+            hubConnection.On<string>("Error", (errorMsg) =>
+            {
+                errorMessage = errorMsg;
+                StateHasChanged();
+            });
+
+            hubConnection.On<dynamic>("UserTyping", (typingObj) =>
+            {
+                // Handle typing indicator
+                isTyping = true;
+                typingUserName = typingObj.UserName;
+                StateHasChanged();
+            });
+
+            hubConnection.On<dynamic>("UserStoppedTyping", (typingObj) =>
+            {
+                isTyping = false;
+                typingUserName = null;
+                StateHasChanged();
+            });
+
+            // Call event handlers
+            hubConnection.On<dynamic>("CallStarted", async (callData) =>
+            {
+                await HandleIncomingCall(callData);
+            });
+
+            await hubConnection.StartAsync();
+            await hubConnection.SendAsync("JoinChat", ChatId);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to connect to chat server: {ex.Message}";
             StateHasChanged();
-        });
-
-        hubConnection.On<string>("Error", (errorMsg) =>
-        {
-            errorMessage = errorMsg;
-            StateHasChanged();
-        });
-
-        hubConnection.On<dynamic>("UserTyping", (typingObj) =>
-        {
-            // Handle typing indicator
-            isTyping = true;
-            typingUserName = typingObj.UserName;
-            StateHasChanged();
-        });
-
-        hubConnection.On<dynamic>("UserStoppedTyping", (typingObj) =>
-        {
-            isTyping = false;
-            typingUserName = null;
-            StateHasChanged();
-        });
-
-        // Call event handlers
-        hubConnection.On<dynamic>("CallStarted", async (callData) =>
-        {
-            await HandleIncomingCall(callData);
-        });
-
-        await hubConnection.StartAsync();
-        await hubConnection.SendAsync("JoinChat", ChatId);
+        }
     }
 
     private async Task SendMessage()
     {
-        if (string.IsNullOrWhiteSpace(messageInput) || hubConnection == null)
+        if (string.IsNullOrWhiteSpace(messageInput))
             return;
 
-        errorMessage = null; // Clear any previous error
-        await hubConnection.SendAsync("SendMessage", ChatId, messageInput, "Text");
-        messageInput = string.Empty;
-        await LoadMessages();
+        Console.WriteLine($"Sending message to chat {ChatId}: {messageInput}");
+
+        if (hubConnection == null)
+        {
+            errorMessage = "Connection not established. Please refresh the page.";
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            errorMessage = null; // Clear any previous error
+            await hubConnection.SendAsync("SendMessage", ChatId, messageInput, "Text");
+            messageInput = string.Empty;
+            // Don't call LoadMessages here, let the SignalR event handle it
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to send message: {ex.Message}";
+            StateHasChanged();
+        }
     }
 
     private void DismissError()
@@ -334,54 +359,54 @@
 }
 
 <style>
-.call-notification {
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1050;
-    min-width: 350px;
-}
+    .call-notification {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1050;
+        min-width: 350px;
+    }
 
-.call-notification-content {
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-    display: flex;
-    align-items: center;
-    padding: 16px;
-    gap: 16px;
-}
+    .call-notification-content {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        display: flex;
+        align-items: center;
+        padding: 16px;
+        gap: 16px;
+    }
 
-.call-notification-icon {
-    width: 40px;
-    height: 40px;
-    background: #007bff;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 18px;
-}
+    .call-notification-icon {
+        width: 40px;
+        height: 40px;
+        background: #007bff;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 18px;
+    }
 
-.call-notification-info {
-    flex: 1;
-}
+    .call-notification-info {
+        flex: 1;
+    }
 
-.call-notification-title {
-    font-weight: 600;
-    font-size: 14px;
-    margin-bottom: 4px;
-}
+    .call-notification-title {
+        font-weight: 600;
+        font-size: 14px;
+        margin-bottom: 4px;
+    }
 
-.call-notification-subtitle {
-    font-size: 12px;
-    color: #6c757d;
-}
+    .call-notification-subtitle {
+        font-size: 12px;
+        color: #6c757d;
+    }
 
-.call-notification-actions {
-    display: flex;
-    gap: 8px;
-}
+    .call-notification-actions {
+        display: flex;
+        gap: 8px;
+    }
 </style>
