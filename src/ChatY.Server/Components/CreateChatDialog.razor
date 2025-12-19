@@ -5,8 +5,8 @@
 @inject NavigationManager Navigation
 @inject AuthenticationStateService AuthState
 
-<div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-    <div class="modal-dialog">
+<div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" @onclick="Close">
+    <div class="modal-dialog" @onclick:stopPropagation>
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Create New Chat</h5>
@@ -21,37 +21,44 @@
                 <div class="mb-3">
                     <label class="form-label">Chat Type</label>
                     <div class="form-check">
-                        <input type="radio" value="Private" checked="@(chatType == "Private")" @onchange='() => chatType = "Private"'
-                            class="form-check-input" name="chatType" id="privateChat" />
+                        <input type="radio" value="Private" checked="@(chatType == "Private")"
+                            @onchange='() => chatType = "Private"' class="form-check-input" name="chatType"
+                            id="privateChat" />
                         <label class="form-check-label" for="privateChat">
                             Private Chat
                         </label>
                     </div>
                     <div class="form-check">
-                        <input type="radio" value="Group" checked="@(chatType == "Group")" @onchange='() => chatType = "Group"'
-                            class="form-check-input" name="chatType" id="groupChat" />
+                        <input type="radio" value="Group" checked="@(chatType == "Group")"
+                            @onchange='() => chatType = "Group"' class="form-check-input" name="chatType"
+                            id="groupChat" />
                         <label class="form-check-label" for="groupChat">
                             Group Chat
                         </label>
                     </div>
                 </div>
-                @if (chatType == "Group")
+                @if (availableUsers.Any())
                 {
                     <div class="mb-3">
-                        <label class="form-label">Add Participants</label>
-                        <select class="form-select" multiple @bind="selectedParticipants">
-                            @foreach (var user in availableUsers)
-                            {
-                                <option value="@user.Id">@user.DisplayName (@user.UserName)</option>
-                            }
-                        </select>
+                        <label class="form-label">Select Participants</label>
+                        @foreach (var user in availableUsers)
+                        {
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="@($"user-{user.Id}")"
+                                    checked="@selectedParticipants.Contains(user.Id)"
+                                    @onchange="() => ToggleParticipant(user.Id)" />
+                                <label class="form-check-label" for="@($"user-{user.Id}")">
+                                    @user.DisplayName (@user.UserName)
+                                </label>
+                            </div>
+                        }
                     </div>
                 }
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" @onclick="Close">Cancel</button>
                 <button type="button" class="btn btn-primary" @onclick="CreateChat"
-                    disabled="@string.IsNullOrWhiteSpace(chatName)">Create</button>
+                    disabled="@(string.IsNullOrWhiteSpace(chatName) || (chatType == "Private" && selectedParticipants.Count != 1) || (chatType == "Group" && selectedParticipants.Count < 1))">Create</button>
             </div>
         </div>
     </div>
@@ -72,6 +79,18 @@
         if (currentUserId != null)
         {
             availableUsers = (await UserService.GetAllUsersAsync()).Where(u => u.Id != currentUserId).ToList();
+        }
+    }
+
+    private void ToggleParticipant(string userId)
+    {
+        if (selectedParticipants.Contains(userId))
+        {
+            selectedParticipants.Remove(userId);
+        }
+        else
+        {
+            selectedParticipants.Add(userId);
         }
     }
 
