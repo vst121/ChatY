@@ -35,7 +35,7 @@ public class ChatHub : Hub
 
     public override async Task OnConnectedAsync()
     {
-        var userId = _authState.GetCurrentUserId();
+        var userId = Context.User?.FindFirst("UserId")?.Value ?? Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId != null)
         {
             _userConnections[Context.ConnectionId] = userId;
@@ -66,7 +66,7 @@ public class ChatHub : Hub
     public async Task JoinChat(string chatId)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, chatId);
-        var userId = _authState.GetCurrentUserId();
+        var userId = Context.User?.FindFirst("UserId")?.Value ?? Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         _logger.LogInformation("User {UserId} joined chat {ChatId}", userId, chatId);
     }
 

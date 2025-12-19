@@ -13,7 +13,9 @@
                     <AuthorizeView>
                         <Authorized>
                             <span>@context.User.Identity?.Name</span>
-                            <a href="/logout" class="btn btn-sm btn-outline-secondary">Logout</a>
+                            <form method="post" action="/api/login/logout" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">Logout</button>
+                            </form>
                         </Authorized>
                         <NotAuthorized>
                             <a href="/login" class="btn btn-sm btn-primary">Login</a>

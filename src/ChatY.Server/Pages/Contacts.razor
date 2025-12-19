@@ -1,9 +1,12 @@
 @page "/contacts"
+@attribute [Authorize]
 @using ChatY.Core.Entities
 @using ChatY.Services.Interfaces
+@using Microsoft.AspNetCore.Components.Authorization
 @inject IUserService UserService
 @inject IChatService ChatService
 @inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Contacts - ChatY</PageTitle>
 
@@ -11,10 +14,10 @@
     <div class="row">
         <div class="col-md-12">
             <h2>Contacts</h2>
-            
+
             <div class="mb-3">
-                <input type="text" class="form-control" placeholder="Search contacts..."
-                       @bind="searchTerm" @oninput="SearchContacts" />
+                <input type="text" class="form-control" placeholder="Search contacts..." @bind="searchTerm"
+                    @oninput="SearchContacts" />
             </div>
 
             @if (contacts == null)
@@ -62,10 +65,12 @@
 @code {
     private List<User>? contacts;
     private string searchTerm = string.Empty;
-    private string? currentUserId = "user1"; // TODO: Get from authentication
+    private string? currentUserId;
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirst("UserId")?.Value ?? authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         await LoadContacts();
     }
 
@@ -118,5 +123,3 @@
         };
     }
 }
-
-

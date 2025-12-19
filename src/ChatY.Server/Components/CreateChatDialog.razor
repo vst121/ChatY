@@ -78,7 +78,7 @@
         var currentUserId = AuthState.GetCurrentUserId();
         if (currentUserId != null)
         {
-            availableUsers = (await UserService.GetAllUsersAsync()).Where(u => u.Id != currentUserId).ToList();
+            availableUsers = (await UserService.GetAllUsersAsync()).Where(u => u.Id != currentUserId && u.IsOnline).ToList();
         }
     }
 

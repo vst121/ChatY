@@ -1,7 +1,5 @@
 @page "/logout"
-@inject NavigationManager Navigation
-@using Microsoft.AspNetCore.Authentication
-@inject IHttpContextAccessor HttpContextAccessor
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Logout - ChatY</PageTitle>
 
@@ -20,16 +18,20 @@
     </div>
 </div>
 
-@code {
-    protected override async Task OnInitializedAsync()
-    {
-        var httpContext = HttpContextAccessor.HttpContext;
-        if (httpContext != null)
-        {
-            await httpContext.SignOutAsync("Cookies");
-        }
+<form method="post" action="/api/login/logout" style="display: none;">
+    <button type="submit" id="logoutButton"></button>
+</form>
 
-        // Navigate to home page
-        Navigation.NavigateTo("/", forceLoad: true);
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Trigger the form submission
+            await JSRuntime.InvokeVoidAsync("eval", "document.getElementById('logoutButton').click();");
+        }
     }
+
+    [Inject]
+    private IJSRuntime JSRuntime { get; set; } = default!;
 }

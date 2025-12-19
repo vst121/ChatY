@@ -1,13 +1,15 @@
 @page "/chats"
+@attribute [Authorize]
 @using ChatY.Core.Entities
 @using ChatY.Services
 @using ChatY.Services.Interfaces
 @using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.AspNetCore.Components.Authorization
 @inject IChatService ChatService
 @inject IUserService UserService
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
-@inject AuthenticationStateService AuthState
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @implements IAsyncDisposable
 
 <PageTitle>Chats - ChatY</PageTitle>
@@ -95,7 +97,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        currentUserId = AuthState.GetCurrentUserId();
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirst("UserId")?.Value ?? authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         await LoadChats();
         await InitializeSignalR();
     }
