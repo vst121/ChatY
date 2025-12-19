@@ -99,7 +99,7 @@
             var user = await UserService.GetUserByIdAsync(userId);
             if (user != null)
             {
-                var chatName = user.DisplayName ?? user.UserName;
+                var chatName = user.DisplayName ?? user.UserName ?? "Unknown";
                 var chat = await ChatService.CreateChatAsync(currentUserId, chatName, ChatType.Private, new[] { userId });
                 Navigation.NavigateTo($"/chats?chatId={chat.Id}");
             }

@@ -1,9 +1,10 @@
 using ChatY.Core.Entities;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace ChatY.Infrastructure.Data;
 
-public class ChatYDbContext : DbContext
+public class ChatYDbContext : IdentityDbContext<User>
 {
     public ChatYDbContext(DbContextOptions<ChatYDbContext> options) : base(options)
     {

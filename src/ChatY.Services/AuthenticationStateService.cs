@@ -15,16 +15,17 @@ public class AuthenticationStateService
 
     public async Task<User?> GetCurrentUserAsync(ClaimsPrincipal? user = null)
     {
-        // For now, return the test user. In a real app, this would get the user from claims
-        // TODO: Implement proper authentication with claims
-        return await _userService.GetUserByIdAsync("user1");
+        var userId = GetCurrentUserId(user);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return null;
+        }
+        return await _userService.GetUserByIdAsync(userId);
     }
 
     public string? GetCurrentUserId(ClaimsPrincipal? user = null)
     {
-        // For now, return the test user ID. In a real app, this would get the user ID from claims
-        // TODO: Implement proper authentication with claims
-        return "user1";
+        return user?.FindFirst("UserId")?.Value ?? user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
     }
 
     public async Task<string?> GetCurrentUserNameAsync(ClaimsPrincipal? user = null)

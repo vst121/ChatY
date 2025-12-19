@@ -12,6 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddSignalR();
+builder.Services.AddControllers();
 
 // Database
 builder.Services.AddDbContext<ChatYDbContext>(options =>
@@ -23,6 +24,9 @@ builder.Services.AddScoped<IMessageService, MessageService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ICallService, CallService>();
 builder.Services.AddScoped<AuthenticationStateService>();
+
+// HTTP Context Accessor for authentication
+builder.Services.AddHttpContextAccessor();
 
 // Azure Services
 builder.Services.AddScoped<ChatY.Infrastructure.Services.IAzureBlobStorageService, ChatY.Infrastructure.Services.AzureBlobStorageService>();
@@ -55,6 +59,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapRazorPages();
+app.MapControllers();
 app.MapBlazorHub();
 app.MapHub<ChatHub>("/chathub");
 app.MapFallbackToPage("/_Host");

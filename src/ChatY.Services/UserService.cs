@@ -116,10 +116,10 @@ public class UserService : IUserService
 
         return await _context.Users
             .Where(u => u.Id != currentUserId &&
-                       !blockedUserIds.Contains(u.Id) &&
-                       (u.UserName.Contains(searchTerm) ||
-                        u.DisplayName != null && u.DisplayName.Contains(searchTerm) ||
-                        u.Email.Contains(searchTerm)))
+                        !blockedUserIds.Contains(u.Id) &&
+                        ((u.UserName != null && u.UserName.Contains(searchTerm)) ||
+                         (u.DisplayName != null && u.DisplayName.Contains(searchTerm)) ||
+                         (u.Email != null && u.Email.Contains(searchTerm))))
             .Take(50)
             .ToListAsync();
     }
@@ -127,6 +127,40 @@ public class UserService : IUserService
     public async Task<IEnumerable<User>> GetAllUsersAsync()
     {
         return await _context.Users.ToListAsync();
+    }
+
+    public async Task<User> AuthenticateOrCreateUserAsync(string userNameOrEmail)
+    {
+        // Try to find existing user by username or email
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.UserName == userNameOrEmail || u.Email == userNameOrEmail);
+
+        if (user == null)
+        {
+            // Create new user
+            user = new User
+            {
+                UserName = userNameOrEmail.Contains("@") ? null : userNameOrEmail,
+                Email = userNameOrEmail.Contains("@") ? userNameOrEmail : null,
+                DisplayName = userNameOrEmail.Contains("@") ? userNameOrEmail.Split('@')[0] : userNameOrEmail,
+                UserStatus = UserStatus.Online,
+                IsOnline = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+        }
+        else
+        {
+            // Update existing user status
+            user.UserStatus = UserStatus.Online;
+            user.IsOnline = true;
+            user.LastSeen = null;
+            await _context.SaveChangesAsync();
+        }
+
+        return user;
     }
 }
 

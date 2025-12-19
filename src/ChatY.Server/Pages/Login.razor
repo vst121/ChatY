@@ -1,0 +1,56 @@
+@page "/login"
+@inject NavigationManager Navigation
+
+<PageTitle>Login - ChatY</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title text-center">Welcome to ChatY</h3>
+                </div>
+                <div class="card-body">
+                    <form action="/api/login" method="post">
+                        <div class="mb-3">
+                            <label for="userNameOrEmail" class="form-label">Username or Email</label>
+                            <input type="text" class="form-control" name="userNameOrEmail" id="userNameOrEmail" required />
+                            <div class="form-text">
+                                Enter your username or email address. If you don't have an account, one will be created for you.
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(GetErrorMessage()))
+                        {
+                            <div class="alert alert-danger">
+                                @GetErrorMessage()
+                            </div>
+                        }
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                Login / Sign Up
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string GetErrorMessage()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (uri.Query.Contains("error"))
+        {
+            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+            if (query.TryGetValue("error", out var error))
+            {
+                return error.ToString();
+            }
+        }
+        return string.Empty;
+    }
+}

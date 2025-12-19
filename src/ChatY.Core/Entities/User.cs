@@ -1,10 +1,9 @@
+using Microsoft.AspNetCore.Identity;
+
 namespace ChatY.Core.Entities;
 
-public class User
+public class User : IdentityUser
 {
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string UserName { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
     public string? DisplayName { get; set; }
     public string? ProfilePhotoUrl { get; set; }
     public string? Status { get; set; }

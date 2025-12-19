@@ -36,16 +36,19 @@ public class ChatHub : Hub
     public override async Task OnConnectedAsync()
     {
         var userId = _authState.GetCurrentUserId();
-        _userConnections[Context.ConnectionId] = userId;
-        await _userService.UpdateUserStatusAsync(userId, UserStatus.Online);
-        await Clients.All.SendAsync("UserStatusChanged", userId, UserStatus.Online.ToString());
+        if (userId != null)
+        {
+            _userConnections[Context.ConnectionId] = userId;
+            await _userService.UpdateUserStatusAsync(userId, UserStatus.Online);
+            await Clients.All.SendAsync("UserStatusChanged", userId, UserStatus.Online.ToString());
+        }
         await base.OnConnectedAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         var userId = _authState.GetCurrentUserId();
-        if (_userConnections.ContainsKey(Context.ConnectionId))
+        if (userId != null && _userConnections.ContainsKey(Context.ConnectionId))
         {
             _userConnections.Remove(Context.ConnectionId);
 
