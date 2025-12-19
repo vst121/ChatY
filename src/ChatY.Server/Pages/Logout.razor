@@ -31,7 +31,4 @@
             await JSRuntime.InvokeVoidAsync("eval", "document.getElementById('logoutButton').click();");
         }
     }
-
-    [Inject]
-    private IJSRuntime JSRuntime { get; set; } = default!;
 }

@@ -1,5 +1,6 @@
 using ChatY.Core.Entities;
 using ChatY.Services.Interfaces;
+using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
 
 namespace ChatY.Services;
