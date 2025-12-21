@@ -4,9 +4,11 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
-@inject AuthenticationStateService AuthState
+@inject AuthenticationStateProvider AuthStateProvider
 @inject IUserService UserService
 @implements IAsyncDisposable
 
@@ -135,6 +137,7 @@
     private string? errorMessage;
     private bool isLoading = false;
     private string videoQuality = "HD"; // HD, SD, LD
+    private string? currentUserId;
 
     public bool IsVisible
     {
@@ -173,6 +176,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User?.FindFirst("UserId")?.Value ?? authState.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        
         await InitializeSignalR();
         await InitializeCallManager();
     }
@@ -503,7 +509,7 @@
 
     private string GetCurrentUserId()
     {
-        return AuthState.GetCurrentUserId() ?? "user1";
+        return currentUserId ?? "user1";
     }
 
     public async ValueTask DisposeAsync()

@@ -61,6 +61,12 @@ public class MessageService : IMessageService
         }
 
         await _context.SaveChangesAsync();
+
+        // Load the Sender navigation property before returning
+        await _context.Entry(message)
+            .Reference(m => m.Sender)
+            .LoadAsync();
+
         return message;
     }
 

@@ -2,10 +2,12 @@
 @using ChatY.Services
 @using ChatY.Services.Interfaces
 @using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
 @inject IMessageService MessageService
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
-@inject AuthenticationStateService AuthState
+@inject AuthenticationStateProvider AuthStateProvider
 @implements IAsyncDisposable
 
 <div class="chat-window">
@@ -132,7 +134,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        currentUserId = AuthState.GetCurrentUserId();
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User?.FindFirst("UserId")?.Value ?? authState.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         await LoadMessages();
         await InitializeSignalR();
     }

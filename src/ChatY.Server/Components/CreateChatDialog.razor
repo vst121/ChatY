@@ -1,9 +1,11 @@
 @using ChatY.Services
 @using ChatY.Services.Interfaces
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
 @inject IChatService ChatService
 @inject IUserService UserService
 @inject NavigationManager Navigation
-@inject AuthenticationStateService AuthState
+@inject AuthenticationStateProvider AuthStateProvider
 
 <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" @onclick="Close">
     <div class="modal-dialog" @onclick:stopPropagation>
@@ -72,10 +74,13 @@
     private string chatType = "Private";
     private List<User> availableUsers = new();
     private List<string> selectedParticipants = new();
+    private string? currentUserId;
 
     protected override async Task OnInitializedAsync()
     {
-        var currentUserId = AuthState.GetCurrentUserId();
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User?.FindFirst("UserId")?.Value ?? authState.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        
         if (currentUserId != null)
         {
             availableUsers = (await UserService.GetAllUsersAsync()).Where(u => u.Id != currentUserId && u.IsOnline).ToList();
@@ -96,7 +101,6 @@
 
     private async Task CreateChat()
     {
-        var currentUserId = AuthState.GetCurrentUserId();
         if (currentUserId == null || string.IsNullOrWhiteSpace(chatName))
             return;
 
