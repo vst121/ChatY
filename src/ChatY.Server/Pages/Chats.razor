@@ -59,15 +59,22 @@
                                 </div>
                             </div>
                         </div>
-                        @if (CanDeleteChat(chat))
-                        {
-                            <div class="chat-item-actions">
+                        <div class="chat-item-actions">
+                            @if (chat.CreatedByUserId == currentUserId)
+                            {
                                 <button class="btn btn-sm btn-link text-danger" @onclick="() => DeleteChat(chat.Id)"
-                                    @onclick:stopPropagation>
+                                    @onclick:stopPropagation title="Delete Chat">
                                     <i class="fas fa-trash"></i>
                                 </button>
-                            </div>
-                        }
+                            }
+                            else
+                            {
+                                <button class="btn btn-sm btn-link text-warning" @onclick="() => LeaveChat(chat.Id)"
+                                    @onclick:stopPropagation title="Leave Chat">
+                                    <i class="fas fa-sign-out-alt"></i>
+                                </button>
+                            }
+                        </div>
                     </div>
                 }
             }
@@ -84,7 +91,7 @@
         }
         else
         {
-            <ChatWindow ChatId="selectedChat.Id" ChatName="selectedChat.Name" />
+            <ChatWindow ChatId="@selectedChat.Id" ChatName="@selectedChat.Name" />
         }
     </div>
 </div>
@@ -164,16 +171,27 @@
         showCreateChatDialog = false;
     }
 
-    private bool CanDeleteChat(Chat chat)
-    {
-        return chat.CreatedByUserId == currentUserId;
-    }
+
 
     private async Task DeleteChat(string chatId)
     {
         if (currentUserId != null)
         {
             await ChatService.DeleteChatAsync(chatId);
+            if (selectedChatId == chatId)
+            {
+                selectedChat = null;
+                selectedChatId = null;
+            }
+            await LoadChats();
+        }
+    }
+
+    private async Task LeaveChat(string chatId)
+    {
+        if (currentUserId != null)
+        {
+            await ChatService.RemoveParticipantAsync(chatId, currentUserId);
             if (selectedChatId == chatId)
             {
                 selectedChat = null;

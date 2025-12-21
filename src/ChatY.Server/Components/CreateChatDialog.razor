@@ -83,7 +83,7 @@
         
         if (currentUserId != null)
         {
-            availableUsers = (await UserService.GetAllUsersAsync()).Where(u => u.Id != currentUserId && u.IsOnline).ToList();
+            availableUsers = (await UserService.GetAllUsersAsync()).Where(u => u.Id != currentUserId).ToList();
         }
     }
 
