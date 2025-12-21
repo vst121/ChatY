@@ -81,7 +81,11 @@ public class ChatHub : Hub
     public async Task SendMessage(string chatId, string content, string messageType = "Text")
     {
         var userId = GetUserId();
-        if (userId == null) return;
+        if (userId == null) 
+        {
+            await Clients.Caller.SendAsync("Error", "Authentication failed. User ID not found.");
+            return;
+        }
 
         _logger.LogInformation("Hub received SendMessage: ChatId={ChatId}, UserId={UserId}, Content={Content}", chatId, userId, content);
 

@@ -4,10 +4,13 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.Security.Claims
+@using Microsoft.AspNetCore.SignalR
+@using ChatY.Server.Hubs
 @inject IMessageService MessageService
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IHubContext<ChatHub> HubContext
 @implements IAsyncDisposable
 
 <div class="chat-window">
@@ -238,9 +241,30 @@
         try
         {
             errorMessage = null; // Clear any previous error
-            await hubConnection.SendAsync("SendMessage", ChatId, messageInput, "Text");
+
+            if (currentUserId == null)
+            {
+                errorMessage = "You are not logged in.";
+                StateHasChanged();
+                return;
+            }
+
+            var type = MessageType.Text;
+            var message = await MessageService.SendMessageAsync(ChatId, currentUserId, messageInput, type);
+            
+            // Broadcast to others via HubContext
+            await HubContext.Clients.Group(ChatId).SendAsync("MessageReceived", new
+            {
+                message.Id,
+                message.ChatId,
+                message.SenderId,
+                message.Content,
+                message.Type,
+                message.SentAt,
+                Sender = new { message.Sender.UserName, message.Sender.DisplayName, message.Sender.ProfilePhotoUrl }
+            });
+
             messageInput = string.Empty;
-            // Don't call LoadMessages here, let the SignalR event handle it
         }
         catch (Exception ex)
         {

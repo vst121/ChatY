@@ -115,8 +115,7 @@ public class UserService : IUserService
             .ToListAsync();
 
         return await _context.Users
-            .Where(u => u.Id != currentUserId &&
-                        !blockedUserIds.Contains(u.Id) &&
+            .Where(u => !blockedUserIds.Contains(u.Id) &&
                         ((u.UserName != null && u.UserName.Contains(searchTerm)) ||
                          (u.DisplayName != null && u.DisplayName.Contains(searchTerm)) ||
                          (u.Email != null && u.Email.Contains(searchTerm))))
