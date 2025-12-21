@@ -5,7 +5,7 @@ using System.Security.Claims;
 
 namespace ChatY.Server.Controllers;
 
-[Route("api/[controller]")]
+[Route("api")]
 public class LoginController : Controller
 {
     private readonly IUserService _userService;
@@ -15,7 +15,7 @@ public class LoginController : Controller
         _userService = userService;
     }
 
-    [HttpPost]
+    [HttpPost("login")]
     public async Task<IActionResult> Login([FromForm] string userNameOrEmail)
     {
         if (string.IsNullOrWhiteSpace(userNameOrEmail))
@@ -52,7 +52,7 @@ public class LoginController : Controller
         }
     }
 
-    [HttpPost]
+    [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
         // Get current user and set status to offline
