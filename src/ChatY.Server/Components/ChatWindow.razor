@@ -165,35 +165,50 @@
 
             hubConnection.On<dynamic>("MessageReceived", async (messageObj) =>
             {
-                await LoadMessages();
-                StateHasChanged();
+                await InvokeAsync(async () =>
+                {
+                    await LoadMessages();
+                    StateHasChanged();
+                });
             });
 
-            hubConnection.On<string>("Error", (errorMsg) =>
+            hubConnection.On<string>("Error", async (errorMsg) =>
             {
-                errorMessage = errorMsg;
-                StateHasChanged();
+                await InvokeAsync(() =>
+                {
+                    errorMessage = errorMsg;
+                    StateHasChanged();
+                });
             });
 
-            hubConnection.On<dynamic>("UserTyping", (typingObj) =>
+            hubConnection.On<dynamic>("UserTyping", async (typingObj) =>
             {
-                // Handle typing indicator
-                isTyping = true;
-                typingUserName = typingObj.UserName;
-                StateHasChanged();
+                await InvokeAsync(() =>
+                {
+                    // Handle typing indicator
+                    isTyping = true;
+                    typingUserName = typingObj.UserName;
+                    StateHasChanged();
+                });
             });
 
-            hubConnection.On<dynamic>("UserStoppedTyping", (typingObj) =>
+            hubConnection.On<dynamic>("UserStoppedTyping", async (typingObj) =>
             {
-                isTyping = false;
-                typingUserName = null;
-                StateHasChanged();
+                await InvokeAsync(() =>
+                {
+                    isTyping = false;
+                    typingUserName = null;
+                    StateHasChanged();
+                });
             });
 
             // Call event handlers
             hubConnection.On<dynamic>("CallStarted", async (callData) =>
             {
-                await HandleIncomingCall(callData);
+                await InvokeAsync(async () =>
+                {
+                    await HandleIncomingCall(callData);
+                });
             });
 
             await hubConnection.StartAsync();
